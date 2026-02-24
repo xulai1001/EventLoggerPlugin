@@ -31,7 +31,6 @@ namespace EventLoggerPlugin
 
     public class EventLoggerPlugin : IPlugin
     {
-        public Version Version => new(1, 0, 0);
         [PluginDescription("记录事件信息&干劲等")]
         public string Name => "EventLoggerPlugin";
         public string Author => "xulai1001";
@@ -45,7 +44,7 @@ namespace EventLoggerPlugin
             var json = await resp.Content.ReadAsStringAsync();
             var jo = JObject.Parse(json);
 
-            var isLatest = ("v" + Version.ToString()).Equals("v" + jo["tag_name"]?.ToString());
+            var isLatest = ("v" + ((IPlugin)this).Version.ToString()).Equals("v" + jo["tag_name"]?.ToString());
             if (isLatest)
             {
                 progress.Increment(progress.MaxValue);

@@ -117,7 +117,7 @@ namespace EventLoggerPlugin
         public static LogEvent LastEvent;   // 本次调用时已经结束的事件
         public static bool IsStart = false;
         public static int InitTurn = 0;    // 调用Init时的起始回合数
-        public static List<int> CardIDs;   // 存放配卡，以过滤乱入事件
+        public static List<int> CardIDs = new List<int>();   // 存放配卡，以过滤乱入事件
         public static int vitalSpent = 0;  // 温泉杯统计体力消耗
         public static int LastVital = 0;    // 上一个动作的体力消耗
         public static bool captureVitalSpending = false;    // 是否统计体力消耗的开关
