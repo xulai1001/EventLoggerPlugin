@@ -1,7 +1,9 @@
 ﻿using Gallop;
-using MessagePack;
 using MathNet.Numerics.Distributions;
+using MathNet.Numerics.RootFinding;
 using MessagePack;
+using MessagePack;
+using Newtonsoft.Json;
 using Spectre.Console;
 using UmamusumeResponseAnalyzer;
 using static UmamusumeResponseAnalyzer.Localization.Game;
@@ -72,6 +74,7 @@ namespace EventLoggerPlugin
 
     public class CardEventLogEntry
     {
+        public int scenarioId = 0;  // 剧本ID
         public int turn = -1;       // 回合数
         public int eventType = 0;   // 事件类型 4-系统，5-马娘，8-支援卡
         public int cardId = -1;     // 支援卡ID eventType=8时生效
@@ -330,20 +333,36 @@ namespace EventLoggerPlugin
                                 {
                                     ++CardEventCount;
                                     --CardEventRemaining;
+                                    // 记录事件
+                                    var logEntry = new CardEventLogEntry
+                                    {
+                                        scenarioId = @event.data.chara_info.scenario_id,
+                                        turn = @event.data.chara_info.turn,
+                                        eventType = eventType,
+                                        cardId = cardId,
+                                        rarity = rarity,
+                                        step = which,
+                                        isFinished = false
+                                    };
                                     if (which == rarity)
                                     {
                                         ++CardEventFinishCount;    // 走完了N个事件（N是稀有度）则认为连续事件走完了                                    
                                         Print($"[green]连续事件完成[/]");
+                                        logEntry.isFinished = true;
                                     }
                                     else
                                     {
-                                        if (IsEventBreaking(null))
-                                            ++CardEventFinishCount;    // 走完了N个事件（N是稀有度）则认为连续事件走完了
+                                        if (IsEventInterrupted(null))
+                                        {
+                                            ++CardEventFinishCount;
+                                            logEntry.isFinished = true;
+                                        }
                                         else
                                             Print($"[yellow]连续事件 {which} / {rarity}[/]");
                                     }
                                     if (CardEventFinishCount == 5)
                                         CardEventFinishTurn = @event.data.chara_info.turn;
+                                    WriteLog(logEntry);
                                 }
                             }
                             else
@@ -372,7 +391,7 @@ namespace EventLoggerPlugin
                 {
                     // 分析特殊事件
                     if (LastEvent.StoryId == 400000040)    // 继承
-                    {
+                    { 
                         var color = "yellow";
                         if (LastEvent.Stats < 126)
                             color = "red";
@@ -381,19 +400,95 @@ namespace EventLoggerPlugin
                         Print($"[{color}]本次继承属性：{LastEvent.Stats}, Pt: {LastEvent.Pt}[/]");
                         InheritStats.Add(LastEvent.Stats);
                     }
+                    // 立即分析当前包里的继承信息
+                    if (@event.data.unchecked_event_array.Length > 0 &&
+                        @event.data.unchecked_event_array.First().succession_event_info != null)
+                    {
+                        AnalyzeSuccessionChoice(@event.data.unchecked_event_array.First().succession_event_info, @event);
+                    }
                 } // if excludedevents
                 LastEvent.StoryId = @event.data.unchecked_event_array.Count() > 0 ? @event.data.unchecked_event_array.First().story_id : -1;
             } // if isstart
             // 保存当前回合数和story_id到lastEvent，用于下次调用
             LastValue = currentValue;
-            LastEvent.Turn = @event.data.chara_info.turn;
-            
+            LastEvent.Turn = @event.data.chara_info.turn;            
         }
+
+        public static void WriteLog(CardEventLogEntry entry)
+        {
+            var filename = "PluginData/EventLoggerPlugin/events.json";
+            List<CardEventLogEntry> events = new List<CardEventLogEntry>();
+            // 读取现有事件记录
+            if (File.Exists(filename))
+            {
+                try
+                {
+                    var f = File.ReadAllText(filename);
+                    events = JsonConvert.DeserializeObject<List<CardEventLogEntry>>(f);
+                    if (events == null) events = new List<CardEventLogEntry>();
+                }
+                catch
+                {
+                    AnsiConsole.MarkupLine($"[red]读取 events.json 出错，请检查 EventLoggerPlugin 插件[/]");
+                }
+            }
+            // 写入
+            try
+            {
+                events.Add(entry);
+                File.WriteAllText(filename, JsonConvert.SerializeObject(events, Formatting.Indented));
+            }
+            catch (Exception e)
+            {
+                AnsiConsole.MarkupLine($"[red]写入 events.json 出错，请检查 EventLoggerPlugin 插件[/]");
+                AnsiConsole.WriteLine(e.Message);
+            }
+        }
+
+        public static void AnalyzeSuccessionChoice(SingleModeSuccessionEventInfo se, SingleModeCheckEventResponse @event) { 
+            Print("[lime]------ 继承选择 ------[/]");
+            var chara = @event.data.chara_info;
+            string[] properText = ["", "G", "F", "E", "D", "C", "B", "A", "S"];
+
+            var currentFiveValue = new int[]
+            {
+                chara.speed,
+                chara.stamina,
+                chara.power,
+                chara.guts,
+                chara.wiz,
+            };
+            var currentFiveValueRevised = currentFiveValue.Select(ScoreUtils.ReviseOver1200);
+            var totalValue = currentFiveValueRevised.Sum();
+            var pt = chara.skill_point;
+            var proper = UpdateProper(@event);
+
+            var table = new Table();
+            foreach (var choice in se.succession_gain_info_array)
+            {
+                var lines = new List<string>();
+                var newTotal = choice.FiveStatus.Select(ScoreUtils.ReviseOver1200).Sum();
+                var newPt = choice.skill_point;
+                var newProper = choice.Proper;
+                lines.Add($"属性: [cyan]{newTotal - totalValue}[/], PT: {newPt - pt}");
+                lines.Add($"生效因子数: [cyan]{choice.effected_factor_array.Length}[/], 继承技能数: [cyan]{choice.skill_tips_array.Length}[/]");
+                foreach (var k in newProper.Keys)
+                {
+                    if (proper.Keys.Contains(k) && proper[k] < newProper[k])
+                        lines.Add($"[yellow]{k} 适性提升: {properText[proper[k]]} -> {properText[newProper[k]]}[/]");
+                }
+                table.AddColumn($"继承结果 [lime]{choice.lottery_id}[/]")
+                    .AddRow(new Rule())
+                    .AddRow(string.Join("\n", lines));
+            }
+            AnsiConsole.Write(table);            
+        }
+
         /// <summary>
         ///  判断是否断事件
         /// </summary>
         /// <param name="request_choice">手动选择时，为@event.choice_number - 1</param>
-        public static bool IsEventBreaking(int? request_choice)
+        public static bool IsEventInterrupted(int? request_choice)
         {
             if (LastEvent != null && Database.Events.TryGetValue(LastEvent.StoryId, out var story))
             {
@@ -472,7 +567,7 @@ namespace EventLoggerPlugin
         public static void UpdatePlayerChoice(Gallop.SingleModeChoiceRequest @event)
         {
             Print($"[violet]选择选项 {@event.choice_number}[/]");
-            if (IsEventBreaking(@event.choice_number - 1))
+            if (IsEventInterrupted(@event.choice_number - 1))
             {
                 var cardId = LastEvent.StoryId / 1000 % 100000;
                 var rarity = LastEvent.StoryId / 10000000 % 10;  // 取第二位-稀有度
