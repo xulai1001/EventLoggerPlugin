@@ -83,6 +83,13 @@ namespace EventLoggerPlugin
         public bool isFinished = false;
     }
 
+    public class SkillTipInfo
+    {
+        public string name = ""; // 技能名
+        public int old_level = 0;
+        public int new_level = 0;
+    }
+
     public static class EventLogger
     {
         public const int MinEventStrength = 25;
@@ -218,10 +225,9 @@ namespace EventLoggerPlugin
             // 获取技能表和适性
             if (IsStart && @event.data.chara_info != null)
             {
-                var currentSkillTip = @event.data.chara_info.skill_tips_array.ToDictionary(x => x.group_id * 10 + x.rarity);
+                var currentSkillTip = SkillTipsToDict(@event.data.chara_info.skill_tips_array);
                 var currentSkill = @event.data.chara_info.skill_array.ToDictionary(x => x.skill_id);
                 var newSkills = new List<string>();
-                var newTips = new List<string>();
 
                 if (lastSkill != null)
                 {
@@ -240,29 +246,9 @@ namespace EventLoggerPlugin
                 }
                 if (lastSkillTips != null)
                 {
-                    foreach (var k in currentSkillTip.Keys)
-                    {
-                        if (!lastSkillTips.ContainsKey(k) || lastSkillTips[k].level != currentSkillTip[k].level)
-                        {
-                            var skill = currentSkillTip[k];
-                            var old_level = 0;
-                            if (lastSkillTips.TryGetValue(k, out var v))
-                            {
-                                old_level = v.level;
-                            }
-                            var name = $"#{skill.group_id}, {skill.rarity}, {skill.level}";
-                            var sks = SkillManagerGenerator.Default[(skill.group_id, skill.rarity)];
-                            if (sks != null && sks.Count() >= 1)
-                            {
-                                var which = sks[0].Name.Contains("◎") ? 1 : 0;  // 排除双圈
-                                name = sks[which].DisplayName;
-                            }
-                            if (skill.level > old_level)
-                                Print($"[violet]习得Hint {name} Lv.{old_level} -> {skill.level}[/]");
-                            newTips.Add($"{name} Lv.{old_level} -> {skill.level}");
-                        }
-                    }
-                    //Print($"[violet]习得Hint: {string.Join(", ", newTips)}[/]");
+                    var newTips = AnalyzeSkillTips(currentSkillTip);
+                    foreach (var t in newTips)
+                        Print($"[violet]习得Hint: {t.name} Lv.{t.old_level} -> {t.new_level}[/]");
                 }
 
                 lastSkill = currentSkill;
@@ -400,18 +386,55 @@ namespace EventLoggerPlugin
                         Print($"[{color}]本次继承属性：{LastEvent.Stats}, Pt: {LastEvent.Pt}[/]");
                         InheritStats.Add(LastEvent.Stats);
                     }
-                    // 立即分析当前包里的继承信息
-                    if (@event.data.unchecked_event_array.Length > 0 &&
-                        @event.data.unchecked_event_array.First().succession_event_info != null)
-                    {
-                        AnalyzeSuccessionChoice(@event.data.unchecked_event_array.First().succession_event_info, @event);
-                    }
                 } // if excludedevents
                 LastEvent.StoryId = @event.data.unchecked_event_array.Count() > 0 ? @event.data.unchecked_event_array.First().story_id : -1;
             } // if isstart
             // 保存当前回合数和story_id到lastEvent，用于下次调用
             LastValue = currentValue;
             LastEvent.Turn = @event.data.chara_info.turn;            
+        }
+
+        public static Dictionary<int, SkillTips> SkillTipsToDict(SkillTips[] tips)
+        {
+            return tips.ToDictionary(x => x.group_id * 10 + x.rarity);
+        }
+
+        /// <summary>
+        /// 将转为Dict的SkillTips数组和现有hint等级比对，得到新增的hint文字结果
+        /// </summary>
+        public static List<SkillTipInfo> AnalyzeSkillTips(Dictionary<int, SkillTips> tipsDict)
+        {
+            var newTips = new List<SkillTipInfo>();
+            // 获取技能Hint更新情况
+            if (lastSkillTips != null)
+            {
+                foreach (var k in tipsDict.Keys)
+                {
+                    if (!lastSkillTips.ContainsKey(k) || lastSkillTips[k].level != tipsDict[k].level)
+                    {
+                        var skill = tipsDict[k];
+                        var old_level = 0;
+                        if (lastSkillTips.TryGetValue(k, out var v))
+                        {
+                            old_level = v.level;
+                        }
+                        var name = $"#{skill.group_id}, {skill.rarity}, {skill.level}";
+                        var sks = SkillManagerGenerator.Default[(skill.group_id, skill.rarity)];
+                        if (sks != null && sks.Count() >= 1)
+                        {
+                            var which = sks[0].Name.Contains("◎") ? 1 : 0;  // 排除双圈
+                            name = sks[which].DisplayName;
+                        }
+                        newTips.Add(new SkillTipInfo
+                        {
+                            name = name,
+                            old_level = old_level,
+                            new_level = skill.level
+                        });
+                    }
+                }
+            }
+            return newTips;
         }
 
         public static void WriteLog(CardEventLogEntry entry)
@@ -445,9 +468,10 @@ namespace EventLoggerPlugin
             }
         }
 
-        public static void AnalyzeSuccessionChoice(SingleModeSuccessionEventInfo se, SingleModeCheckEventResponse @event) { 
+        public static void AnalyzeSuccessionChoice(SingleModeCheckEventResponse @event) { 
             Print("[lime]------ 继承选择 ------[/]");
             var chara = @event.data.chara_info;
+            var se = @event.data.unchecked_event_array.First().succession_event_info;
             string[] properText = ["", "G", "F", "E", "D", "C", "B", "A", "S"];
 
             var currentFiveValue = new int[]
@@ -464,6 +488,10 @@ namespace EventLoggerPlugin
             var proper = UpdateProper(@event);
 
             var table = new Table();
+            var cols = new List<Markup>();
+            foreach (var choice in se.succession_gain_info_array)
+                table.AddColumn($"继承结果 [lime]{choice.lottery_id}[/]", col => col.Width(32));
+           
             foreach (var choice in se.succession_gain_info_array)
             {
                 var lines = new List<string>();
@@ -471,16 +499,25 @@ namespace EventLoggerPlugin
                 var newPt = choice.skill_point;
                 var newProper = choice.Proper;
                 lines.Add($"属性: [cyan]{newTotal - totalValue}[/], PT: {newPt - pt}");
-                lines.Add($"生效因子数: [cyan]{choice.effected_factor_array.Length}[/], 继承技能数: [cyan]{choice.skill_tips_array.Length}[/]");
+                // 统计适性
                 foreach (var k in newProper.Keys)
                 {
                     if (proper.Keys.Contains(k) && proper[k] < newProper[k])
                         lines.Add($"[yellow]{k} 适性提升: {properText[proper[k]]} -> {properText[newProper[k]]}[/]");
                 }
-                table.AddColumn($"继承结果 [lime]{choice.lottery_id}[/]")
-                    .AddRow(new Rule())
-                    .AddRow(string.Join("\n", lines));
+                // 统计白因子数 factor_id >= 1000000
+                var whiteCount = 0;
+                foreach (var pos in choice.effected_factor_array)
+                    whiteCount += pos.factor_info_array.Count(x => x.factor_id >= 1000000);
+                lines.Add($"白因子: [cyan]{whiteCount}[/]");
+                // 统计Hint
+                var tipsDict = SkillTipsToDict(choice.skill_tips_array);
+                var newTips = AnalyzeSkillTips(tipsDict);
+                lines.Add($"技能Hint: [cyan]{newTips.Count}[/]");
+
+                cols.Add(new Markup(string.Join("\n", lines)));
             }
+            table.AddRow(cols);
             AnsiConsole.Write(table);            
         }
 
@@ -587,8 +624,12 @@ namespace EventLoggerPlugin
             if (CardEventCount > 0)
             {
                 // https://x.com/Alefrain_ht/status/1811300886737797511/photo/3
-                // 凯旋门比其他剧本高5%
-                var p = (scenario == 6 ? 0.35 : 0.3);
+                // 回合数不满78的剧本比其他剧本高5%，这部分调整中
+                var p = scenario switch
+                {
+                    6 | 13 => 0.35,
+                    _ => 0.3
+                };
                 var n = (GameStats.currentTurn - InitTurn + 1) - ExcludedTurns.Count(x => x >= InitTurn && x <= GameStats.currentTurn);
                 //(p(x<=k-1) + p(x<=k)) / 2
                 var bn = Binomial.CDF(p, n, CardEventCount);

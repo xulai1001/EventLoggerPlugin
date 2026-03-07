@@ -169,6 +169,12 @@ namespace EventLoggerPlugin
                             }
                         }
                     }
+                    // 如果检测到继承信息则立即显示
+                    if (@event.data.unchecked_event_array.Length > 0 &&
+                        @event.data.unchecked_event_array.First().succession_event_info != null)
+                    {
+                        EventLogger.AnalyzeSuccessionChoice(@event);
+                    }
                 }
             }
 
