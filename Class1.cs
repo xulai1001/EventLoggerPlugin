@@ -168,9 +168,9 @@ namespace EventLoggerPlugin
                             }
                         }
                     }
-                    // 如果检测到继承信息则立即显示
-                    if (@event.data.unchecked_event_array.Length > 0 &&
-                        @event.data.unchecked_event_array.First().succession_event_info != null)
+                    // 只有服务端已经返回继承候选明细时才分析。
+                    var successionInfo = @event.data.unchecked_event_array.FirstOrDefault()?.succession_event_info;
+                    if (successionInfo?.succession_gain_info_array?.Any() == true)
                     {
                         EventLogger.AnalyzeSuccessionChoice(@event);
                     }
