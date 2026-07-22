@@ -1,6 +1,5 @@
 using Gallop;
 using Gallop.Endpoints;
-using Spectre.Console;
 using UmamusumeResponseAnalyzer.LiveDisplay;
 using UmamusumeResponseAnalyzer.Plugin;
 
@@ -22,7 +21,7 @@ namespace EventLoggerPlugin
             EventLoggerDisplay.Initialize(context);
         }
 
-        public Task UpdatePlugin(ProgressContext ctx) => Task.CompletedTask;
+        public void Dispose() => EventLoggerDisplay.Dispose();
 
         [ResponseAnalyzer<GameApi.SingleMode.CheckEvent>(-1)]
         public ValueTask StartEventLogger(SingleModeCheckEventResponse response)
@@ -253,7 +252,7 @@ namespace EventLoggerPlugin
         {
             if (commandResult.result_state != 1) return;
 
-            EventLoggerDisplay.MarkupLog("[yellow]训练失败！[/]", LiveDisplaySeverity.Warning);
+            EventLoggerDisplay.Log("训练失败！", LiveDisplaySeverity.Warning);
             EventLoggerDisplay.Notify("训练失败！", LiveDisplaySeverity.Warning);
             if (GameStats.stats[GameStats.currentTurn] != null)
                 GameStats.stats[GameStats.currentTurn].isTrainingFailed = true;

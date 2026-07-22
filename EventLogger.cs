@@ -1,8 +1,6 @@
 ﻿using Gallop;
 using MathNet.Numerics.Distributions;
-using MathNet.Numerics.RootFinding;
 using Newtonsoft.Json;
-using Spectre.Console;
 using UmamusumeResponseAnalyzer.LiveDisplay;
 
 namespace EventLoggerPlugin
@@ -18,10 +16,10 @@ namespace EventLoggerPlugin
         public int Stats = 0;
         public int Pt = 0;
         public int Vital = 0;
-        private string fmt(int x) => x.ToString("+#;-#;0");
+        static string FormatDelta(int x) => x.ToString("+#;-#;0");
         public string Explain()
         {
-            return $">> 属性: {fmt(Stats)}, Pt: {fmt(Pt)}, 体力: {fmt(Vital)}；评分: +{EventStrength}";
+            return $">> 属性: {FormatDelta(Stats)}, Pt: {FormatDelta(Pt)}, 体力: {FormatDelta(Vital)}；评分: +{EventStrength}";
         }
         public static LogValue operator -(LogValue a, LogValue b)
         {
@@ -165,10 +163,9 @@ namespace EventLoggerPlugin
 
         public static void Print(string s)
         {
-            EventLoggerDisplay.MarkupLog(s);
+            EventLoggerDisplay.Log(s);
         }
 
-        //--------------------------
         // 这个方法在重复发送第一回合时会被反复调用，需要可重入
         public static void Init(EventLoggerSnapshot snapshot)
         {
@@ -228,7 +225,6 @@ namespace EventLoggerPlugin
             var selectedIndex = FirstSelectIndex(snapshot.SelectIndexInfo);
             if (IsStart && selectedIndex is { } index && index != 1)
             {
-                // 不太对
                 lastEvent.SelectIndex = index;
             }
 
@@ -247,18 +243,17 @@ namespace EventLoggerPlugin
                         {
                             var skill = currentSkill[k];
                             var name = $"#{skill.skill_id}";
-                            //Print($"[violet]习得技能 {name}[/]");
                             newSkills.Add(name);
                         }
                     }
                     if (newSkills.Count > 0)
-                        Print($"[violet]习得技能: {string.Join(", ", newSkills)}[/]");
+                        Print($"习得技能: {string.Join(", ", newSkills)}");
                 }
                 if (lastSkillTips != null)
                 {
                     var newTips = AnalyzeSkillTips(currentSkillTip);
                     foreach (var t in newTips)
-                        Print($"[violet]习得Hint: {t.name} Lv.{t.old_level} -> {t.new_level}[/]");
+                        Print($"习得Hint: {t.name} Lv.{t.old_level} -> {t.new_level}");
                 }
 
                 lastSkill = currentSkill;
@@ -271,7 +266,7 @@ namespace EventLoggerPlugin
                     foreach (var k in currProper.Keys)
                     {
                         if (lastProper.ContainsKey(k) && lastProper[k] < currProper[k])
-                            Print($"[yellow]{k} 适性提升: {properText[lastProper[k]]} -> {properText[currProper[k]]}[/]");
+                            Print($"{k} 适性提升: {properText[lastProper[k]]} -> {properText[currProper[k]]}");
                     }
                 }
                 lastProper = currProper;
@@ -288,11 +283,11 @@ namespace EventLoggerPlugin
                 {
                     var spent = Math.Abs(LastVital);
                     vitalSpent += spent;
-                    Print($"[blue]体力 - {spent}[/]");
+                    Print($"体力 - {spent}");
                 } 
                 else if (LastVital > 0)
                 {
-                    Print($"[green]体力 + {LastVital}[/]");
+                    Print($"体力 + {LastVital}");
                 }
             }
             // 分析事件
@@ -323,7 +318,7 @@ namespace EventLoggerPlugin
                                 // sanity check 防止重入
                                 if (CardEvents.Any(e => e.StoryId == lastEvent.StoryId))
                                 {
-                                    EventLoggerDisplay.MarkupLog($"[red]已经记录该连续事件: {lastEvent.StoryId}, 忽略重复记录[/]", LiveDisplaySeverity.Warning);
+                                    EventLoggerDisplay.Log($"已经记录该连续事件: {lastEvent.StoryId}, 忽略重复记录", LiveDisplaySeverity.Warning);
                                 }
                                 else
                                 {
@@ -343,12 +338,12 @@ namespace EventLoggerPlugin
                                     if (which == rarity)
                                     {
                                         ++CardEventFinishCount;    // 走完了N个事件（N是稀有度）则认为连续事件走完了                                    
-                                        Print($"[green]连续事件完成[/]");
+                                        Print("连续事件完成");
                                         logEntry.isFinished = true;
                                     }
                                     else
                                     {
-                                        Print($"[yellow]连续事件 {which} / {rarity}[/]");
+                                        Print($"连续事件 {which} / {rarity}");
                                     }
                                     if (CardEventFinishCount == 5)
                                         CardEventFinishTurn = chara.turn;
@@ -357,7 +352,7 @@ namespace EventLoggerPlugin
                             }
                             else
                             {
-                                Print($"[red]乱入连续事件[/]");
+                                Print("乱入连续事件");
                             }
                             CardEvents.Add(new LogEvent(lastEvent));
                         }
@@ -382,12 +377,7 @@ namespace EventLoggerPlugin
                     // 分析特殊事件
                     if (lastEvent.StoryId == 400000040)    // 继承
                     { 
-                        var color = "yellow";
-                        if (lastEvent.Stats < 126)
-                            color = "red";
-                        else if (lastEvent.Stats >= 192)
-                            color = "green";
-                        Print($"[{color}]本次继承属性：{lastEvent.Stats}, Pt: {lastEvent.Pt}[/]");
+                        Print($"本次继承属性：{lastEvent.Stats}, Pt: {lastEvent.Pt}");
                         InheritStats.Add(lastEvent.Stats);
                     }
                 } // if excludedevents
@@ -448,7 +438,7 @@ namespace EventLoggerPlugin
         }
 
         public static void AnalyzeSuccessionChoice(EventLoggerSnapshot snapshot) {
-            Print("[lime]------ 继承选择 ------[/]");
+            Print("------ 继承选择 ------");
             var chara = RequireChara(snapshot);
             var se = snapshot.UncheckedEvents?.FirstOrDefault()?.succession_event_info
                 ?? throw new InvalidOperationException("EventLogger 需要 succession_event_info。");
@@ -467,38 +457,36 @@ namespace EventLoggerPlugin
             var pt = chara.skill_point;
             var proper = UpdateProper(chara);
 
-            var table = new Table();
-            var cols = new List<Markup>();
-            foreach (var choice in se.succession_gain_info_array)
-                table.AddColumn($"继承结果 [lime]{choice.lottery_id}[/]", col => col.Width(32));
-           
+            var sections = new List<string>();
             foreach (var choice in se.succession_gain_info_array)
             {
                 var lines = new List<string>();
+                lines.Add($"继承结果 {choice.lottery_id}");
                 var newTotal = FiveStatus(choice).Select(ScoreUtils.ReviseOver1200).Sum();
                 var newPt = choice.skill_point;
                 var newProper = Proper(choice);
-                lines.Add($"属性: [cyan]{newTotal - totalValue}[/], PT: {newPt - pt}");
+                lines.Add($"属性: {newTotal - totalValue}, PT: {newPt - pt}");
                 // 统计适性
                 foreach (var k in newProper.Keys)
                 {
                     if (proper.ContainsKey(k) && proper[k] < newProper[k])
-                        lines.Add($"[yellow]{k} 适性提升: {properText[proper[k]]} -> {properText[newProper[k]]}[/]");
+                        lines.Add($"{k} 适性提升: {properText[proper[k]]} -> {properText[newProper[k]]}");
                 }
                 // 统计白因子数 factor_id >= 1000000
                 var whiteCount = 0;
                 foreach (var pos in choice.effected_factor_array)
                     whiteCount += pos.factor_info_array.Count(x => x.factor_id >= 1000000);
-                lines.Add($"白因子: [cyan]{whiteCount}[/]");
+                lines.Add($"白因子: {whiteCount}");
                 // 统计Hint
                 var tipsDict = SkillTipsToDict(choice.skill_tips_array);
                 var newTips = AnalyzeSkillTips(tipsDict);
-                lines.Add($"技能Hint: [cyan]{newTips.Count}[/]");
-
-                cols.Add(new Markup(string.Join("\n", lines)));
+                lines.Add($"技能Hint: {newTips.Count}");
+                sections.Add(string.Join(Environment.NewLine, lines));
             }
-            table.AddRow(cols);
-            EventLoggerDisplay.SetPanel("succession", "继承选择", table);
+            EventLoggerDisplay.SetPanel(
+                "succession",
+                "继承选择",
+                LiveDisplayContent.Text(string.Join(Environment.NewLine + Environment.NewLine, sections)));
         }
 
         /// <summary>
@@ -559,7 +547,7 @@ namespace EventLoggerPlugin
         public static void UpdatePlayerChoice(SingleModeCheckEventRequestCommon request)
         {
             var choiceNumber = request.choice_number;
-            Print($"[violet]选择选项 {choiceNumber}[/]");
+            Print($"选择选项 {choiceNumber}");
         }
         public static List<string> PrintCardEventPerf(int scenario)
         {
@@ -582,10 +570,10 @@ namespace EventLoggerPlugin
                 if (CardEventFinishCount < 5)
                 {
                     // 调试中，暂不加入I18N
-                    ret.Add(string.Format("连续事件出现[yellow]{0}[/]次", CardEventCount));
-                    ret.Add(string.Format("走完[yellow]{0}[/]张卡", CardEventFinishCount));
+                    ret.Add(string.Format("连续事件出现 {0} 次", CardEventCount));
+                    ret.Add(string.Format("走完 {0} 张卡", CardEventFinishCount));
                     if (InitTurn != 1 && n > 0)
-                        ret.Add(string.Format("连续事件运气: [yellow]{0}%[/]", ((bn + bn_1) / 2 * 200 - 100).ToString("+#;-#;0")));
+                        ret.Add(string.Format("连续事件运气: {0}%", ((bn + bn_1) / 2 * 200 - 100).ToString("+#;-#;0")));
                     else
                     {
                         // 从第1回合开始记录则可以计算连续事件走完率
@@ -596,13 +584,13 @@ namespace EventLoggerPlugin
                             pFinish = 1;
                         else if (TurnRemaining > 0)
                             pFinish = 1 - Binomial.CDF(p, TurnRemaining, CardEventRemaining - 1);
-                        ret.Add(string.Format("剩余[yellow]{0}[/]个连续事件", CardEventRemaining));
-                        ret.Add(string.Format("完成概率: [yellow]{0}%[/]", (pFinish * 100).ToString("0")));
+                        ret.Add(string.Format("剩余 {0} 个连续事件", CardEventRemaining));
+                        ret.Add(string.Format("完成概率: {0}%", (pFinish * 100).ToString("0")));
                     }
                 }
                 else
                 {
-                    ret.Add(string.Format("[green]连续事件全部完成[/]"));
+                    ret.Add("连续事件全部完成");
                 }
             }
             return ret;
@@ -616,7 +604,7 @@ namespace EventLoggerPlugin
                 if (h.result_rank == 1)
                     raceHistory.Add(h.turn);
             }
-            EventLoggerDisplay.MarkupLog($"[magenta]当前已取胜 {raceHistory.Count} 场[/]");
+            EventLoggerDisplay.Log($"当前已取胜 {raceHistory.Count} 场");
         }
     }
 }

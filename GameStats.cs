@@ -1,5 +1,6 @@
 ﻿using MathNet.Numerics.Distributions;
-using Spectre.Console;
+
+using UmamusumeResponseAnalyzer.LiveDisplay;
 
 namespace EventLoggerPlugin
 {
@@ -72,15 +73,13 @@ namespace EventLoggerPlugin
 
         // 种田杯
         // 理事长
-        public bool[] cook_friendAtTrain; // 友人（凉花）是否在这个训练
-                                          //public int cook_friendEvent;
+        public bool[] cook_friendAtTrain; // 友人（理事长）是否在这个训练
 
         // legend团卡
         public bool[] legend_friendAtTrain; // 团卡是否在这个训练
         public bool legend_isEffect104;//是否为情热状态
         public bool legend_friendClickEvent;//团卡三选一事件
         public bool legend_friendClickEventCountConcerned;//非情热，非第一次点击
-        //public int cook_friendEvent;
 
         public TurnStats()
         {
@@ -142,7 +141,7 @@ namespace EventLoggerPlugin
                 if (stats[i].motivation < stats[i - 1].motivation)
                     m_motDropCount += stats[i - 1].motivation - stats[i].motivation;
             }
-            EventLoggerDisplay.MarkupLog($"这局掉了[yellow]{m_motDropCount}[/]级心情（忽略刚掉就回的情况）");
+            EventLoggerDisplay.Log($"这局掉了 {m_motDropCount} 级心情（忽略刚掉就回的情况）");
 
             //统计体力消耗和赌训练的次数
             {
@@ -166,8 +165,8 @@ namespace EventLoggerPlugin
                         totalFailureRate += failRate;
                     }
                 }
-                EventLoggerDisplay.MarkupLog($"这局赌了[yellow]{totalGambleTimes}[/]次训练，失败了[yellow]{totalFailureTimes}[/]次，总失败率为[yellow]{totalFailureRate}[/]%");
-                EventLoggerDisplay.MarkupLog($"训练消耗总体力：[yellow]{-totalVitalGain}[/]");
+                EventLoggerDisplay.Log($"这局赌了 {totalGambleTimes} 次训练，失败了 {totalFailureTimes} 次，总失败率为 {totalFailureRate}%");
+                EventLoggerDisplay.Log($"训练消耗总体力：{-totalVitalGain}");
             }
             if (whichScenario == (int)ScenarioType.GrandMasters)
             {
@@ -188,13 +187,12 @@ namespace EventLoggerPlugin
                             }
                         }
                     }
-                    EventLoggerDisplay.MarkupLog($"一共召唤了[aqua]{concernedTurnTotal}[/]次女神，女神来了[aqua]{venusEventCount}[/]次");
+                    EventLoggerDisplay.Log($"一共召唤了 {concernedTurnTotal} 次女神，女神来了 {venusEventCount} 次");
                 }
                 //统计女神持续回合数
                 {
                     int[] contTurns = new int[100];
                     int maxContTurns = 0;
-                    for (int i = 0; i < 100; i++) { contTurns[i] = 0; }
 
                     bool isUnfinishedLast = true;//最后一次不完整，不统计
                     int contTurn = 0;
@@ -220,9 +218,9 @@ namespace EventLoggerPlugin
                     var lineToPrint = "女神持续回合数统计：";
                     for (int i = 1; i <= maxContTurns; i++)
                     {
-                        lineToPrint += $"[green]{i}[/]回合[yellow]{contTurns[i]}[/]次，";
+                        lineToPrint += $"{i} 回合 {contTurns[i]} 次，";
                     }
-                    EventLoggerDisplay.MarkupLog(lineToPrint);
+                    EventLoggerDisplay.Log(lineToPrint);
                 }
 
                 //统计训练属性pt收益
@@ -271,38 +269,16 @@ namespace EventLoggerPlugin
 
                     }
 
-                    var table = new Table();
-                    int tableWidth = 7;
-                    table.AddColumns(
-                          new TableColumn($" ").Width(12),
-                          new TableColumn($"速").Width(tableWidth),
-                          new TableColumn($"耐").Width(tableWidth),
-                          new TableColumn($"力").Width(tableWidth),
-                          new TableColumn($"根").Width(tableWidth),
-                          new TableColumn($"智").Width(tableWidth),
-                          new TableColumn($"总").Width(tableWidth),
-                          new TableColumn($"pt").Width(tableWidth)
-                          );
+                    var lines = new[]
                     {
-                        var outputItems = new string[8];
-                        outputItems[0] = "总训练";
-                        for (int j = 0; j < 5; j++)
-                            outputItems[j + 1] = $"{fiveGain[j]}";
-                        outputItems[6] = $"{fiveGain.Sum()}";
-                        outputItems[7] = $"{ptGain}";
-                        table.AddRow(outputItems);
-                    }
-                    {
-                        var outputItems = new string[8];
-                        outputItems[0] = "碎片加成";
-                        for (int j = 0; j < 5; j++)
-                            outputItems[j + 1] = $"{fiveGainSpirit[j]}";
-                        outputItems[6] = $"{fiveGainSpirit.Sum()}";
-                        outputItems[7] = $"{ptGainSpirit}";
-                        table.AddRow(outputItems);
-                    }
-
-                    EventLoggerDisplay.SetPanel("training-summary", "训练收益", table);
+                        "          速    耐    力    根    智    总    pt",
+                        $"总训练    {string.Join("    ", fiveGain)}    {fiveGain.Sum()}    {ptGain}",
+                        $"碎片加成  {string.Join("    ", fiveGainSpirit)}    {fiveGainSpirit.Sum()}    {ptGainSpirit}",
+                    };
+                    EventLoggerDisplay.SetPanel(
+                        "training-summary",
+                        "训练收益",
+                        LiveDisplayContent.Text(string.Join(Environment.NewLine, lines)));
                 }
             }
             if (whichScenario == (int)ScenarioType.LArc)
@@ -325,7 +301,7 @@ namespace EventLoggerPlugin
                         if (SSSCount == 0) contNonSSS += stats[i].larc_SSPersonCount;
                     }
                 }
-                EventLoggerDisplay.MarkupLog($"一共进行了[aqua]{fullSSCount}[/]次SS训练，其中[aqua]{SSSCount}[/]次为SSS，已经连续[#80ff00]{contNonSSS}[/]人头不是SSS{(contNonSSS >= 8 ? "，[aqua]下次必为SSS[/]" : "")}");
+                EventLoggerDisplay.Log($"一共进行了 {fullSSCount} 次SS训练，其中 {SSSCount} 次为SSS，已经连续 {contNonSSS} 人头不是SSS{(contNonSSS >= 8 ? "，下次必为SSS" : "")}");
                 m_fullSSCount = fullSSCount;
                 m_SSSCount = SSSCount;
                 m_contNonSSS = contNonSSS;
@@ -374,20 +350,19 @@ namespace EventLoggerPlugin
                     // (p(n<=k-1) + p(n<=k)) / 2
                     double bn = Binomial.CDF(0.4, zuoyueClickedTimesNonAbroad, zuoyueChargedTimes);
                     double bn_1 = Binomial.CDF(0.4, zuoyueClickedTimesNonAbroad, zuoyueChargedTimes - 1);
-                    zuoyuePerformance = $"，超过了[aqua]{(bn + bn_1) / 2 * 100:0.0}%[/]的佐岳";
+                    zuoyuePerformance = $"，超过了 {(bn + bn_1) / 2 * 100:0.0}% 的佐岳";
                 }
-                EventLoggerDisplay.MarkupLog($"远征点了[#80ff00]{zuoyueClickedTimesAbroad}[/]次佐岳，加了[#80ff00]{zuoyueEventTimesAbroad}[/]次适性pt");
-                EventLoggerDisplay.MarkupLog($"非远征点了[aqua]{zuoyueClickedTimesNonAbroad}[/]次佐岳，充了[aqua]{zuoyueChargedTimes}[/]次电" + zuoyuePerformance);
+                EventLoggerDisplay.Log($"远征点了 {zuoyueClickedTimesAbroad} 次佐岳，加了 {zuoyueEventTimesAbroad} 次适性pt");
+                EventLoggerDisplay.Log($"非远征点了 {zuoyueClickedTimesNonAbroad} 次佐岳，充了 {zuoyueChargedTimes} 次电" + zuoyuePerformance);
 
                 // 统计事件收益
                 if (EventLogger.AllEvents.Count > 0)
                 {
-                    EventLoggerDisplay.MarkupLog($"事件数：[cyan]{EventLogger.AllEvents.Count}[/]"
-                                          + $"，平均事件强度: [cyan]{EventLogger.AllEvents.Average(x => x.EventStrength):#.##}[/]"
-                                          + $"，继承属性：[cyan]{string.Join('+', EventLogger.InheritStats)}[/]");
-                    EventLoggerDisplay.MarkupLog($"连续事件出现 [yellow]{EventLogger.CardEventCount}[/] 次，已走完 [yellow]{EventLogger.CardEventFinishCount}[/] 张卡。");
-                    EventLoggerDisplay.MarkupLog($"赌狗事件出现[yellow] {EventLogger.SuccessEventCount} [/]次，" +
-                        $"赌了[yellow] {EventLogger.SuccessEventSelectCount}[/] 次，成功 [yellow]{EventLogger.SuccessEventSuccessCount}[/] 次");
+                    EventLoggerDisplay.Log($"事件数：{EventLogger.AllEvents.Count}"
+                                          + $"，平均事件强度: {EventLogger.AllEvents.Average(x => x.EventStrength):#.##}"
+                                          + $"，继承属性：{string.Join('+', EventLogger.InheritStats)}");
+                    EventLoggerDisplay.Log($"连续事件出现 {EventLogger.CardEventCount} 次，已走完 {EventLogger.CardEventFinishCount} 张卡。");
+                    EventLoggerDisplay.Log($"赌狗事件出现 {EventLogger.SuccessEventCount} 次，赌了 {EventLogger.SuccessEventSelectCount} 次，成功 {EventLogger.SuccessEventSuccessCount} 次");
                 }
             }
             if (whichScenario == (int)ScenarioType.UAF)
@@ -410,15 +385,15 @@ namespace EventLoggerPlugin
                         continue;
                     if (!stats[turn].uaf_friendAtTrain[GameGlobal.ToTrainIndex[stats[turn].playerChoice]])
                         continue;//没点友人
-                    if (stats[turn].uaf_friendEvent == 5)//启动事件
-                        continue;//没点佐岳
+                    if (stats[turn].uaf_friendEvent == 5)
+                        continue;
 
                     friendClickedTimes += 1;
                     if (stats[turn].uaf_friendEvent == 1 || stats[turn].uaf_friendEvent == 2)
                         friendChargedTimes += 1;
                 }
 
-                EventLoggerDisplay.MarkupLog($"共点了[aqua]{friendClickedTimes}[/]次凉花，加了[aqua]{friendChargedTimes}[/]次体力");
+                EventLoggerDisplay.Log($"共点了 {friendClickedTimes} 次凉花，加了 {friendChargedTimes} 次体力");
             }
             if (whichScenario == (int)ScenarioType.Legend)
             {
@@ -448,13 +423,12 @@ namespace EventLoggerPlugin
                         friendChargedTimes += 1;
                 }
 
-                EventLoggerDisplay.MarkupLog($"共点了[aqua]{friendClickedTimes}[/]次团卡，启动了[aqua]{friendChargedTimes}[/]次");
+                EventLoggerDisplay.Log($"共点了 {friendClickedTimes} 次团卡，启动了 {friendChargedTimes} 次");
 
                 //统计女神持续回合数
                 {
                     int[] contTurns = new int[100];
                     int maxContTurns = 0;
-                    for (int i = 0; i < 100; i++) { contTurns[i] = 0; }
 
                     bool isUnfinishedLast = true;//最后一次不完整，不统计
                     int contTurn = 0;
@@ -480,9 +454,9 @@ namespace EventLoggerPlugin
                     var lineToPrint = "团卡持续回合数统计：";
                     for (int i = 1; i <= maxContTurns; i++)
                     {
-                        lineToPrint += $"[green]{i}[/]回合[yellow]{contTurns[i]}[/]次，";
+                        lineToPrint += $"{i} 回合 {contTurns[i]} 次，";
                     }
-                    EventLoggerDisplay.MarkupLog(lineToPrint);
+                    EventLoggerDisplay.Log(lineToPrint);
                 }
             }
         }

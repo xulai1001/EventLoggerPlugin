@@ -1,4 +1,3 @@
-using Spectre.Console.Rendering;
 using UmamusumeResponseAnalyzer.LiveDisplay;
 using UmamusumeResponseAnalyzer.Plugin;
 
@@ -15,9 +14,20 @@ static class EventLoggerDisplay
         workspace = liveDisplay.CreateWorkspace("事件记录");
     }
 
-    public static void MarkupLog(string markup, LiveDisplaySeverity severity = LiveDisplaySeverity.Info)
+    public static void Dispose()
     {
-        LiveDisplay.MarkupLog(Workspace, markup, severity);
+        var display = liveDisplay;
+        var currentWorkspace = workspace;
+        liveDisplay = null;
+        workspace = null;
+
+        if (display is not null && currentWorkspace is not null)
+            display.RemoveWorkspace(currentWorkspace);
+    }
+
+    public static void Log(string text, LiveDisplaySeverity severity = LiveDisplaySeverity.Info)
+    {
+        LiveDisplay.Log(Workspace, text, severity);
     }
 
     public static void Notify(string text, LiveDisplaySeverity severity = LiveDisplaySeverity.Info, TimeSpan? ttl = null)
@@ -25,9 +35,14 @@ static class EventLoggerDisplay
         LiveDisplay.Notify(Workspace, text, severity, ttl);
     }
 
-    public static void SetPanel(string key, string title, IRenderable content, bool fullBleed = false)
+    public static void SetPanel(
+        string key,
+        string title,
+        LiveDisplayContent content,
+        bool fullBleed = false,
+        bool switchToWorkspace = true)
     {
-        LiveDisplay.SetPanel(Workspace, key, title, content, fullBleed);
+        LiveDisplay.SetPanel(Workspace, key, title, content, fullBleed, switchToWorkspace);
     }
 
     static ILiveDisplayOutput LiveDisplay => liveDisplay
