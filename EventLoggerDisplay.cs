@@ -11,7 +11,6 @@ static class EventLoggerDisplay
     public static void Initialize(IPluginContext context)
     {
         liveDisplay = context.LiveDisplay;
-        workspace = liveDisplay.CreateWorkspace("事件记录");
     }
 
     public static void Dispose()
@@ -49,5 +48,5 @@ static class EventLoggerDisplay
         ?? throw new InvalidOperationException("EventLoggerPlugin 尚未初始化 LiveDisplay。");
 
     static LiveDisplayWorkspace Workspace => workspace
-        ?? throw new InvalidOperationException("EventLoggerPlugin 尚未创建 LiveDisplay workspace。");
+        ??= LiveDisplay.CreateWorkspace("事件记录");
 }
