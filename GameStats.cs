@@ -1,6 +1,6 @@
 ﻿using MathNet.Numerics.Distributions;
 
-using UmamusumeResponseAnalyzer.LiveDisplay;
+using UmamusumeResponseAnalyzer.TerminalGui;
 
 namespace EventLoggerPlugin
 {
@@ -278,7 +278,7 @@ namespace EventLoggerPlugin
                     EventLoggerDisplay.SetPanel(
                         "training-summary",
                         "训练收益",
-                        LiveDisplayContent.Text(string.Join(Environment.NewLine, lines)));
+                        WorkspaceContent.Text(string.Join(Environment.NewLine, lines)));
                 }
             }
             if (whichScenario == (int)ScenarioType.LArc)

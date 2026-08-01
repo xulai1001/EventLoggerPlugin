@@ -1,6 +1,6 @@
 using Gallop;
 using Gallop.Endpoints;
-using UmamusumeResponseAnalyzer.LiveDisplay;
+using UmamusumeResponseAnalyzer.TerminalGui;
 using UmamusumeResponseAnalyzer.Plugin;
 
 // 共享库插件：依赖它的场景分析器都用 [assembly: SharedContextWith("EventLoggerPlugin")] 与它同组，
@@ -252,8 +252,8 @@ namespace EventLoggerPlugin
         {
             if (commandResult.result_state != 1) return;
 
-            EventLoggerDisplay.Log("训练失败！", LiveDisplaySeverity.Warning);
-            EventLoggerDisplay.Notify("训练失败！", LiveDisplaySeverity.Warning);
+            EventLoggerDisplay.Log("训练失败！", UiSeverity.Warning);
+            EventLoggerDisplay.Notify("训练失败！", UiSeverity.Warning);
             if (GameStats.stats[GameStats.currentTurn] != null)
                 GameStats.stats[GameStats.currentTurn].isTrainingFailed = true;
         }

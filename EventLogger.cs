@@ -1,7 +1,7 @@
 ﻿using Gallop;
 using MathNet.Numerics.Distributions;
 using Newtonsoft.Json;
-using UmamusumeResponseAnalyzer.LiveDisplay;
+using UmamusumeResponseAnalyzer.TerminalGui;
 
 namespace EventLoggerPlugin
 {
@@ -318,7 +318,7 @@ namespace EventLoggerPlugin
                                 // sanity check 防止重入
                                 if (CardEvents.Any(e => e.StoryId == lastEvent.StoryId))
                                 {
-                                    EventLoggerDisplay.Log($"已经记录该连续事件: {lastEvent.StoryId}, 忽略重复记录", LiveDisplaySeverity.Warning);
+                                    EventLoggerDisplay.Log($"已经记录该连续事件: {lastEvent.StoryId}, 忽略重复记录", UiSeverity.Warning);
                                 }
                                 else
                                 {
@@ -486,7 +486,7 @@ namespace EventLoggerPlugin
             EventLoggerDisplay.SetPanel(
                 "succession",
                 "继承选择",
-                LiveDisplayContent.Text(string.Join(Environment.NewLine + Environment.NewLine, sections)));
+                WorkspaceContent.Text(string.Join(Environment.NewLine + Environment.NewLine, sections)));
         }
 
         /// <summary>
