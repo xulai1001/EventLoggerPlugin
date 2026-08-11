@@ -43,17 +43,12 @@ public sealed record EventLoggerCardEventSummary(
     int FinishedTurn)
 {
     public static EventLoggerCardEventSummary Empty { get; } = new(0, 0, 0, 0);
-
     public bool HasData => Appeared > 0 || Finished > 0 || Remaining > 0 || FinishedTurn > 0;
 }
 
-public sealed record EventLoggerSuccessEventSummary(
-    int Appeared,
-    int Selected,
-    int Succeeded)
+public sealed record EventLoggerSuccessEventSummary(int Appeared, int Selected, int Succeeded)
 {
     public static EventLoggerSuccessEventSummary Empty { get; } = new(0, 0, 0);
-
     public bool HasData => Appeared > 0 || Selected > 0 || Succeeded > 0;
 }
 
@@ -69,53 +64,48 @@ public sealed record EventLoggerScenarioFriendSummary(
 
 public static class EventLoggerDisplaySource
 {
-    public static EventLoggerDisplaySnapshot Current => Capture();
+    public static EventLoggerDisplaySnapshot Current => Capture(EventLogger.Current);
 
-    public static EventLoggerDisplaySnapshot Capture()
+    static EventLoggerDisplaySnapshot Capture(EventLoggerRoundSnapshot current)
     {
-        if (!EventLogger.IsStart && GameStats.currentTurn <= 0 && EventLogger.AllEvents.Count == 0)
+        if (!current.IsStarted && current.CurrentTurn <= 0 && current.AllEvents.Length == 0)
             return EventLoggerDisplaySnapshot.Empty;
 
         return new(
-            EventLogger.IsStart,
-            GameStats.currentTurn,
-            EventLogger.CurrentScenario,
-            EventLogger.AllEvents.Count,
+            current.IsStarted,
+            current.CurrentTurn,
+            current.CurrentScenario,
+            current.AllEvents.Length,
             new(
-                EventLogger.CardEventCount,
-                EventLogger.CardEventFinishCount,
-                EventLogger.CardEventRemaining,
-                EventLogger.CardEventFinishTurn),
+                current.CardEventCount,
+                current.CardEventFinishCount,
+                current.CardEventRemaining,
+                current.CardEventFinishTurn),
             new(
-                EventLogger.SuccessEventCount,
-                EventLogger.SuccessEventSelectCount,
-                EventLogger.SuccessEventSuccessCount),
-            CaptureTrainingFailures(),
-            CaptureScenarioFriend(),
-            EventLogger.InheritStats?.ToArray() ?? [],
-            EventLogger.raceHistory?.Count ?? 0);
+                current.SuccessEventCount,
+                current.SuccessEventSelectCount,
+                current.SuccessEventSuccessCount),
+            CaptureTrainingFailures(current),
+            CaptureScenarioFriend(current),
+            current.InheritStats,
+            current.RaceHistory.Length);
     }
 
-    static EventLoggerTrainingFailureSummary? CaptureTrainingFailures()
+    static EventLoggerTrainingFailureSummary? CaptureTrainingFailures(EventLoggerRoundSnapshot current)
     {
         var gambleTimes = 0;
         var failureTimes = 0;
         var totalFailureRate = 0;
-
-        for (var turn = LastPastTurnIndex(); turn >= 1; turn--)
+        for (var turn = LastPastTurnIndex(current); turn >= 1; turn--)
         {
-            var stats = GameStats.stats[turn];
-            if (stats is null)
+            if (current.Turns[turn] is not { } stats)
                 break;
             if (!TryGetTrainStat(stats, out var trainStat))
                 continue;
-
-            if (stats.isTrainingFailed)
+            if (stats.IsTrainingFailed)
                 failureTimes++;
-
             if (trainStat.FailureRate <= 0)
                 continue;
-
             gambleTimes++;
             totalFailureRate += trainStat.FailureRate;
         }
@@ -125,120 +115,67 @@ public static class EventLoggerDisplaySource
             : new(gambleTimes, failureTimes, totalFailureRate);
     }
 
-    static EventLoggerScenarioFriendSummary? CaptureScenarioFriend()
-        => GameStats.whichScenario switch
+    static EventLoggerScenarioFriendSummary? CaptureScenarioFriend(EventLoggerRoundSnapshot current)
+        => current.Scenario switch
         {
-            (int)ScenarioType.LArc => CaptureLArcFriend(),
-            (int)ScenarioType.UAF => CaptureUafFriend(),
-            (int)ScenarioType.Legend => CaptureLegendFriend(),
-            _ => null
+            (int)ScenarioType.LArc => CaptureFriend(current, "佐岳", static (stats, index) =>
+                stats.LArcFriendAtTrain[index] && stats.LArcFriendEvent != 5,
+                static stats => stats.LArcFriendEvent is 1 or 2 or 4),
+            (int)ScenarioType.UAF => CaptureFriend(current, "凉花", static (stats, index) =>
+                stats.UafFriendAtTrain[index] && stats.UafFriendEvent != 5,
+                static stats => stats.UafFriendEvent is 1 or 2),
+            (int)ScenarioType.Legend => CaptureFriend(current, "团卡", static (stats, index) =>
+                stats.LegendFriendAtTrain[index] && stats.LegendFriendClickEventCountConcerned,
+                static stats => stats.LegendFriendClickEvent),
+            _ => null,
         };
 
-    static EventLoggerScenarioFriendSummary CaptureLArcFriend()
+    static EventLoggerScenarioFriendSummary CaptureFriend(
+        EventLoggerRoundSnapshot current,
+        string label,
+        Func<TurnStatsSnapshot, int, bool> wasClicked,
+        Func<TurnStatsSnapshot, bool> wasActivated)
     {
         var clickedTimes = 0;
         var activatedTimes = 0;
-
-        foreach (var stats in CompletedTrainingTurns())
+        foreach (var stats in CompletedTrainingTurns(current))
         {
-            if (!TryGetTrainIndex(stats, out var trainIndex))
+            if (!TryGetTrainIndex(stats, out var trainIndex) || !wasClicked(stats, trainIndex))
                 continue;
-            if (!IsAtTrain(stats.larc_zuoyueAtTrain, trainIndex) || stats.larc_zuoyueEvent == 5)
-                continue;
-
             clickedTimes++;
-            if (stats.larc_zuoyueEvent is 1 or 2 or 4)
+            if (wasActivated(stats))
                 activatedTimes++;
         }
-
-        return new("佐岳", clickedTimes, activatedTimes);
+        return new(label, clickedTimes, activatedTimes);
     }
 
-    static EventLoggerScenarioFriendSummary CaptureUafFriend()
+    static IEnumerable<TurnStatsSnapshot> CompletedTrainingTurns(EventLoggerRoundSnapshot current)
     {
-        var clickedTimes = 0;
-        var activatedTimes = 0;
-
-        foreach (var stats in CompletedTrainingTurns())
+        for (var turn = Math.Min(Math.Max(current.CurrentTurn, 0), current.Turns.Length - 1); turn >= 1; turn--)
         {
-            if (!TryGetTrainIndex(stats, out var trainIndex))
-                continue;
-            if (!IsAtTrain(stats.uaf_friendAtTrain, trainIndex) || stats.uaf_friendEvent == 5)
-                continue;
-
-            clickedTimes++;
-            if (stats.uaf_friendEvent is 1 or 2)
-                activatedTimes++;
-        }
-
-        return new("凉花", clickedTimes, activatedTimes);
-    }
-
-    static EventLoggerScenarioFriendSummary CaptureLegendFriend()
-    {
-        var clickedTimes = 0;
-        var activatedTimes = 0;
-
-        foreach (var stats in CompletedTrainingTurns())
-        {
-            if (!TryGetTrainIndex(stats, out var trainIndex))
-                continue;
-            if (!IsAtTrain(stats.legend_friendAtTrain, trainIndex) || !stats.legend_friendClickEventCountConcerned)
-                continue;
-
-            clickedTimes++;
-            if (stats.legend_friendClickEvent)
-                activatedTimes++;
-        }
-
-        return new("团卡", clickedTimes, activatedTimes);
-    }
-
-    static IEnumerable<TurnStats> CompletedTrainingTurns()
-    {
-        for (var turn = LastCurrentTurnIndex(); turn >= 1; turn--)
-        {
-            var stats = GameStats.stats[turn];
-            if (stats is null)
+            if (current.Turns[turn] is not { } stats)
                 yield break;
-            if (stats.isTrainingFailed)
+            if (stats.IsTrainingFailed || !TryGetTrainIndex(stats, out _))
                 continue;
-            if (!TryGetTrainIndex(stats, out _))
-                continue;
-
             yield return stats;
         }
     }
 
-    static bool TryGetTrainIndex(TurnStats stats, out int trainIndex)
-    {
-        if (!GameGlobal.TrainIds.Contains(stats.playerChoice))
-        {
-            trainIndex = -1;
-            return false;
-        }
+    static bool TryGetTrainIndex(TurnStatsSnapshot stats, out int trainIndex)
+        => GameGlobal.ToTrainIndex.TryGetValue(stats.PlayerChoice, out trainIndex);
 
-        return GameGlobal.ToTrainIndex.TryGetValue(stats.playerChoice, out trainIndex);
-    }
-
-    static bool TryGetTrainStat(TurnStats stats, out TrainStats trainStat)
+    static bool TryGetTrainStat(TurnStatsSnapshot stats, out TrainStatsSnapshot trainStat)
     {
         trainStat = null!;
-        if (!TryGetTrainIndex(stats, out var trainIndex))
+        if (!TryGetTrainIndex(stats, out var trainIndex) ||
+            trainIndex < 0 ||
+            trainIndex >= stats.FiveTrainStats.Length ||
+            stats.FiveTrainStats[trainIndex] is not { } value)
             return false;
-        if (stats.fiveTrainStats is null || trainIndex < 0 || trainIndex >= stats.fiveTrainStats.Length)
-            return false;
-
-        trainStat = stats.fiveTrainStats[trainIndex];
-        return trainStat is not null;
+        trainStat = value;
+        return true;
     }
 
-    static bool IsAtTrain(bool[]? values, int trainIndex)
-        => values is not null && trainIndex >= 0 && trainIndex < values.Length && values[trainIndex];
-
-    static int LastPastTurnIndex()
-        => Math.Min(Math.Max(GameStats.currentTurn - 1, 0), GameStats.stats.Length - 1);
-
-    static int LastCurrentTurnIndex()
-        => Math.Min(Math.Max(GameStats.currentTurn, 0), GameStats.stats.Length - 1);
+    static int LastPastTurnIndex(EventLoggerRoundSnapshot current)
+        => Math.Min(Math.Max(current.CurrentTurn - 1, 0), current.Turns.Length - 1);
 }

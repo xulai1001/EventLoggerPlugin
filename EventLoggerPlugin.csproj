@@ -10,6 +10,7 @@
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
 		<!-- URA 插件元数据 -->
+		<PluginInternalName>EventLoggerPlugin</PluginInternalName>
 		<PluginDisplayName>记录事件信息&amp;干劲等</PluginDisplayName>
 		<PluginAuthor>xulai1001</PluginAuthor>
 		<PluginDescription>记录掉干劲的次数，事件加的属性，走完率等</PluginDescription>
