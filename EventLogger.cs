@@ -10,7 +10,8 @@ namespace EventLoggerPlugin
     public readonly record struct EventLoggerSnapshot(
         SingleModeChara? CharaInfo,
         SingleModeEventInfo[]? UncheckedEvents,
-        SingleModeSelectIndexInfo[]? SelectIndexInfo);
+        SingleModeSelectIndexInfo[]? SelectIndexInfo,
+        SingleModeHomeInfo? HomeInfo = null);
 
     sealed class LogValue
     {
@@ -184,6 +185,7 @@ namespace EventLoggerPlugin
                 InitLocked(snapshot);
                 GameStats.Reset(isFullGame);
                 IsStart = true;
+                LastValue = Capture(snapshot);
                 captureVitalSpending = captureVital;
                 PublishLocked();
             }
@@ -195,6 +197,16 @@ namespace EventLoggerPlugin
             {
                 GameStats.BeginTurn(scenario, turn);
                 UpdateLocked(snapshot);
+                PublishLocked();
+            }
+        }
+
+        internal static void EnsureScenarioTurn(int scenario, int turn)
+        {
+            lock (Gate)
+            {
+                if (GameStats.CurrentTurn != turn || GameStats.Scenario != scenario)
+                    GameStats.BeginTurn(scenario, turn);
                 PublishLocked();
             }
         }
@@ -223,13 +235,13 @@ namespace EventLoggerPlugin
             }
         }
 
-        internal static void MarkTrainingFailed()
+        internal static void MarkTrainingFailed(int turn)
         {
             lock (Gate)
             {
-                if (GameStats.CurrentTurn >= 0 &&
-                    GameStats.CurrentTurn < GameStats.Turns.Length &&
-                    GameStats.Turns[GameStats.CurrentTurn] is { } stats)
+                if (turn >= 0 &&
+                    turn < GameStats.Turns.Length &&
+                    GameStats.Turns[turn] is { } stats)
                 {
                     stats.isTrainingFailed = true;
                     GameStats.RefreshSummary();
@@ -273,6 +285,8 @@ namespace EventLoggerPlugin
                         stats.uaf_friendEvent = 5;
                     if (eventInfo.story_id == 809044003)
                         stats.uaf_friendEvent = 1;
+                    if (eventInfo.story_id == 830241003)
+                        stats.legend_friendClickEvent = true;
                 }
                 GameStats.RefreshSummary();
                 PublishLocked();
@@ -589,10 +603,30 @@ namespace EventLoggerPlugin
             File.WriteAllText(filename, JsonConvert.SerializeObject(events, Formatting.Indented));
         }
 
-        internal static void AnalyzeSuccessionChoice(EventLoggerSnapshot snapshot)
+        internal static bool TryAnalyzeSuccessionChoice(EventLoggerSnapshot snapshot)
         {
             lock (Gate)
+            {
+                if (!HasCompleteSuccessionChoice(snapshot))
+                    return false;
                 AnalyzeSuccessionChoiceLocked(snapshot);
+                return true;
+            }
+        }
+
+        static bool HasCompleteSuccessionChoice(EventLoggerSnapshot snapshot)
+        {
+            if (snapshot.CharaInfo is not { } chara ||
+                snapshot.UncheckedEvents?.FirstOrDefault()?.succession_event_info is not { } succession ||
+                succession.succession_gain_info_array is not { } choices ||
+                UpdateProper(chara).Values.Any(rank => rank is < 0 or > 8))
+                return false;
+
+            return choices.All(choice =>
+                Proper(choice).Values.All(rank => rank is >= 0 and <= 8) &&
+                choice.effected_factor_array is not null &&
+                choice.effected_factor_array.All(position => position.factor_info_array is not null) &&
+                choice.skill_tips_array is not null);
         }
 
         static void AnalyzeSuccessionChoiceLocked(EventLoggerSnapshot snapshot) {

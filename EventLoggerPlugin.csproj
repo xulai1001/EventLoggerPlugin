@@ -15,11 +15,21 @@
 		<PluginAuthor>xulai1001</PluginAuthor>
 		<PluginDescription>记录掉干劲的次数，事件加的属性，走完率等</PluginDescription>
 		<PluginRepositoryUrl>https://github.com/URA-Plugins/EventLoggerPlugin</PluginRepositoryUrl>
+		<PluginDependencies>LegendScenarioAnalyzer,RamenScenarioAnalyzer</PluginDependencies>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="MathNet.Numerics" Version="5.0.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\LegendScenarioAnalyzer\LegendScenarioAnalyzer.csproj">
+			<Private>false</Private>
+		</ProjectReference>
+		<ProjectReference Include="..\RamenScenarioAnalyzer\RamenScenarioAnalyzer.csproj">
+			<Private>false</Private>
+		</ProjectReference>
 	</ItemGroup>
 
 </Project>
