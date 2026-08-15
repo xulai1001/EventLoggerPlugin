@@ -5,21 +5,27 @@ namespace EventLoggerPlugin;
 internal static class LegendScenarioDisplayBridge
 {
     internal static IDisposable Register()
-        => LegendTrainingDisplay.RegisterModifier(Apply);
+        => LegendTrainingDisplay.RegisterPartProducer();
 
-    internal static void Refresh() => LegendTrainingDisplay.RefreshCurrent(switchToWorkspace: false);
-
-    static void Apply(LegendTrainingDisplayContext context, LegendTrainingDisplayEditor display)
+    internal static void Update(
+        IDisposable registration,
+        EventLoggerScenarioDisplayPart part)
     {
-        var snapshot = EventLoggerDisplaySource.Current;
-        if (snapshot.CurrentScenario != (int)ScenarioType.Legend)
-            return;
+        var producer = (LegendTrainingDisplayPartProducer)registration;
+        producer.Update(
+            new(part.SingleModeCharaId, part.TargetTurn),
+            (_, display) => Apply(part, display));
+    }
 
-        foreach (var line in EventLogger.PrintCardEventPerf((int)ScenarioType.Legend))
+    static void Apply(EventLoggerScenarioDisplayPart part, LegendTrainingDisplayEditor display)
+    {
+        var snapshot = part.Snapshot;
+
+        foreach (var line in part.CardEventLines)
             if (line.Length != 0)
                 display.Important.AddStyled(new LegendDisplaySegment(line, LegendDisplayColor.Yellow));
 
-        if (snapshot.CurrentTurn == context.Turn.Turn && snapshot.TrainingFailures is { } failures)
+        if (snapshot.CurrentTurn == part.TargetTurn && snapshot.TrainingFailures is { } failures)
         {
             display.Important.AddStyled(
                 new LegendDisplaySegment("训练赌博: "),
@@ -31,7 +37,7 @@ internal static class LegendScenarioDisplayBridge
                 new LegendDisplaySegment("%"));
         }
 
-        AddExtraRows(snapshot, display.Extra, context.Turn.Turn);
+        AddExtraRows(snapshot, display.Extra, part.TargetTurn);
     }
 
     static void AddExtraRows(

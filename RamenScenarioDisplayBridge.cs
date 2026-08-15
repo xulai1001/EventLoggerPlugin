@@ -5,21 +5,27 @@ namespace EventLoggerPlugin;
 internal static class RamenScenarioDisplayBridge
 {
     internal static IDisposable Register()
-        => RamenTrainingDisplay.RegisterModifier(Apply);
+        => RamenTrainingDisplay.RegisterPartProducer();
 
-    internal static void Refresh() => RamenTrainingDisplay.RefreshCurrent(switchToWorkspace: false);
-
-    static void Apply(RamenTrainingDisplayContext context, RamenTrainingDisplayEditor display)
+    internal static void Update(
+        IDisposable registration,
+        EventLoggerScenarioDisplayPart part)
     {
-        var snapshot = EventLoggerDisplaySource.Current;
-        if (snapshot.CurrentScenario != (int)ScenarioType.Ramen)
-            return;
+        var producer = (RamenTrainingDisplayPartProducer)registration;
+        producer.Update(
+            new(part.SingleModeCharaId, part.TargetTurn),
+            (_, display) => Apply(part, display));
+    }
 
-        foreach (var line in EventLogger.PrintCardEventPerf((int)ScenarioType.Ramen))
+    static void Apply(EventLoggerScenarioDisplayPart part, RamenTrainingDisplayEditor display)
+    {
+        var snapshot = part.Snapshot;
+
+        foreach (var line in part.CardEventLines)
             if (line.Length != 0)
                 display.Important.AddStyled(new RamenDisplaySegment(line, RamenDisplayColor.Yellow));
 
-        if (snapshot.CurrentTurn == context.Turn.Turn && snapshot.TrainingFailures is { } failures)
+        if (snapshot.CurrentTurn == part.TargetTurn && snapshot.TrainingFailures is { } failures)
             display.Important.AddStyled(
                 new RamenDisplaySegment("训练赌博: "),
                 new RamenDisplaySegment(failures.GambleTimes.ToString(), RamenDisplayColor.Yellow),

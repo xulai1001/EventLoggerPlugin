@@ -3,7 +3,6 @@ using MathNet.Numerics.Distributions;
 using Newtonsoft.Json;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
-using UmamusumeResponseAnalyzer.TerminalGui;
 
 namespace EventLoggerPlugin
 {
@@ -603,83 +602,6 @@ namespace EventLoggerPlugin
             File.WriteAllText(filename, JsonConvert.SerializeObject(events, Formatting.Indented));
         }
 
-        internal static bool TryAnalyzeSuccessionChoice(EventLoggerSnapshot snapshot)
-        {
-            lock (Gate)
-            {
-                if (!HasCompleteSuccessionChoice(snapshot))
-                    return false;
-                AnalyzeSuccessionChoiceLocked(snapshot);
-                return true;
-            }
-        }
-
-        static bool HasCompleteSuccessionChoice(EventLoggerSnapshot snapshot)
-        {
-            if (snapshot.CharaInfo is not { } chara ||
-                snapshot.UncheckedEvents?.FirstOrDefault()?.succession_event_info is not { } succession ||
-                succession.succession_gain_info_array is not { } choices ||
-                UpdateProper(chara).Values.Any(rank => rank is < 0 or > 8))
-                return false;
-
-            return choices.All(choice =>
-                Proper(choice).Values.All(rank => rank is >= 0 and <= 8) &&
-                choice.effected_factor_array is not null &&
-                choice.effected_factor_array.All(position => position.factor_info_array is not null) &&
-                choice.skill_tips_array is not null);
-        }
-
-        static void AnalyzeSuccessionChoiceLocked(EventLoggerSnapshot snapshot) {
-            var chara = RequireChara(snapshot);
-            var se = snapshot.UncheckedEvents?.FirstOrDefault()?.succession_event_info
-                ?? throw new InvalidOperationException("EventLogger 需要 succession_event_info。");
-            string[] properText = ["", "G", "F", "E", "D", "C", "B", "A", "S"];
-
-            var currentFiveValue = new int[]
-            {
-                chara.speed,
-                chara.stamina,
-                chara.power,
-                chara.guts,
-                chara.wiz,
-            };
-            var currentFiveValueRevised = currentFiveValue.Select(ScoreUtils.ReviseOver1200);
-            var totalValue = currentFiveValueRevised.Sum();
-            var pt = chara.skill_point;
-            var proper = UpdateProper(chara);
-
-            var sections = new List<string>();
-            foreach (var choice in se.succession_gain_info_array)
-            {
-                var lines = new List<string>();
-                lines.Add($"继承结果 {choice.lottery_id}");
-                var newTotal = FiveStatus(choice).Select(ScoreUtils.ReviseOver1200).Sum();
-                var newPt = choice.skill_point;
-                var newProper = Proper(choice);
-                lines.Add($"属性: {newTotal - totalValue}, PT: {newPt - pt}");
-                // 统计适性
-                foreach (var k in newProper.Keys)
-                {
-                    if (proper.ContainsKey(k) && proper[k] < newProper[k])
-                        lines.Add($"{k} 适性提升: {properText[proper[k]]} -> {properText[newProper[k]]}");
-                }
-                // 统计白因子数 factor_id >= 1000000
-                var whiteCount = 0;
-                foreach (var pos in choice.effected_factor_array)
-                    whiteCount += pos.factor_info_array.Count(x => x.factor_id >= 1000000);
-                lines.Add($"白因子: {whiteCount}");
-                // 统计Hint
-                var tipsDict = SkillTipsToDict(choice.skill_tips_array);
-                var newTips = AnalyzeSkillTips(tipsDict);
-                lines.Add($"技能Hint: {newTips.Count}");
-                sections.Add(string.Join(Environment.NewLine, lines));
-            }
-            EventLoggerDisplay.SetPanel(
-                "succession",
-                "继承选择",
-                WorkspaceContent.Text(string.Join(Environment.NewLine + Environment.NewLine, sections)));
-        }
-
         /// <summary>
         /// 读取适性
         /// </summary>
@@ -710,28 +632,6 @@ namespace EventLoggerPlugin
         static int? FirstSelectIndex(SingleModeSelectIndexInfo[]? infos)
         {
             return infos?.FirstOrDefault()?.select_index;
-        }
-
-        static int[] FiveStatus(SuccessionGainInfo info)
-        {
-            return [info.speed, info.stamina, info.power, info.guts, info.wiz];
-        }
-
-        static Dictionary<string, int> Proper(SuccessionGainInfo info)
-        {
-            return new Dictionary<string, int>
-            {
-                { "短", info.proper_distance_short },
-                { "英", info.proper_distance_mile },
-                { "中", info.proper_distance_middle },
-                { "长", info.proper_distance_long },
-                { "逃", info.proper_running_style_nige },
-                { "追", info.proper_running_style_oikomi },
-                { "差", info.proper_running_style_sashi },
-                { "先", info.proper_running_style_senko },
-                { "芝", info.proper_ground_turf },
-                { "泥", info.proper_ground_dirt }
-            };
         }
 
         public static List<string> PrintCardEventPerf(int scenario)

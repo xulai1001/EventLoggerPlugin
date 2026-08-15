@@ -9,20 +9,22 @@ public sealed class EventLoggerPlugin : IPlugin
 {
     static string DataDirectory => Path.Combine("PluginData", "EventLoggerPlugin");
     readonly object scenarioGate = new();
-    IDisposable? legendModifier;
-    IDisposable? ramenModifier;
+    IDisposable? legendPartProducer;
+    IDisposable? ramenPartProducer;
     int scenarioCharaId;
     int pendingTrainingTurn = -1;
 
     public void Initialize(IPluginContext context)
     {
+        const int SuccessionDisplayPriority = 3;
+
         EventLogger.ConfigureDataDirectory(DataDirectory);
         Directory.CreateDirectory(DataDirectory);
         EventLoggerDisplay.Initialize(context);
         if (context.IsPluginAvailable("LegendScenarioAnalyzer"))
-            legendModifier = RegisterLegendModifier();
+            legendPartProducer = RegisterLegendPartProducer();
         if (context.IsPluginAvailable("RamenScenarioAnalyzer"))
-            ramenModifier = RegisterRamenModifier();
+            ramenPartProducer = RegisterRamenPartProducer();
 
         context.Analyzers.Register<SingleModeCheckEventResponse>(
             AnalyzerKind.Response,
@@ -58,19 +60,34 @@ public sealed class EventLoggerPlugin : IPlugin
             [EndpointPattern.Wildcard("/umamusume/single_mode*/exec_command")],
             invocation => ParseTrainingRequest(invocation.Payload),
             priority: -1);
+        context.Analyzers.Register<SingleModeCheckEventResponse>(
+            AnalyzerKind.Response,
+            [EndpointPattern.Wildcard("/umamusume/single_mode*/check_event")],
+            invocation => SuccessionChoiceAnalyzer.Analyze(invocation.Payload),
+            priority: SuccessionDisplayPriority);
+        context.Analyzers.Register<SingleModeExecCommandResponse>(
+            AnalyzerKind.Response,
+            [EndpointPattern.Wildcard("/umamusume/single_mode*/exec_command")],
+            invocation => SuccessionChoiceAnalyzer.Analyze(invocation.Payload),
+            priority: SuccessionDisplayPriority);
+        context.Analyzers.Register<SingleModeLoadResponse>(
+            AnalyzerKind.Response,
+            [EndpointPattern.Wildcard("/umamusume/single_mode*/load")],
+            invocation => SuccessionChoiceAnalyzer.Analyze(invocation.Payload),
+            priority: SuccessionDisplayPriority);
     }
 
     public void Dispose()
     {
         try
         {
-            legendModifier?.Dispose();
+            legendPartProducer?.Dispose();
         }
         finally
         {
             try
             {
-                ramenModifier?.Dispose();
+                ramenPartProducer?.Dispose();
             }
             finally
             {
@@ -145,15 +162,13 @@ public sealed class EventLoggerPlugin : IPlugin
             EventLogger.Update(snapshot);
             EnsureScenarioTurn(snapshot);
             EventLogger.RecordScenarioEvents(snapshot.UncheckedEvents);
-
-            EventLogger.TryAnalyzeSuccessionChoice(snapshot);
         }
 
         if (raceHistory is not null)
             EventLogger.UpdateRaceHistory(raceHistory);
 
         TrackScenarioTurn(snapshot);
-        RefreshScenarioDisplays();
+        UpdateScenarioDisplay(snapshot);
 
         return ValueTask.CompletedTask;
     }
@@ -303,23 +318,48 @@ public sealed class EventLoggerPlugin : IPlugin
         stats.legend_friendClickEventCountConcerned = !stats.legend_isEffect104;
     }
 
-    void RefreshScenarioDisplays()
+    void UpdateScenarioDisplay(EventLoggerSnapshot source)
     {
-        if (legendModifier is not null)
-            RefreshLegendDisplay();
-        if (ramenModifier is not null)
-            RefreshRamenDisplay();
+        if (source.CharaInfo is not { } chara)
+            return;
+
+        if (chara.scenario_id == (int)ScenarioType.Legend &&
+            legendPartProducer is { } legendProducer)
+        {
+            UpdateLegendPart(
+                legendProducer,
+                EventLoggerScenarioDisplayPart.Capture(
+                    chara.scenario_id,
+                    chara.single_mode_chara_id,
+                    chara.turn));
+        }
+        else if (chara.scenario_id == (int)ScenarioType.Ramen &&
+                 ramenPartProducer is { } ramenProducer)
+        {
+            UpdateRamenPart(
+                ramenProducer,
+                EventLoggerScenarioDisplayPart.Capture(
+                    chara.scenario_id,
+                    chara.single_mode_chara_id,
+                    chara.turn));
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static IDisposable RegisterLegendModifier() => LegendScenarioDisplayBridge.Register();
+    static IDisposable RegisterLegendPartProducer() => LegendScenarioDisplayBridge.Register();
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static IDisposable RegisterRamenModifier() => RamenScenarioDisplayBridge.Register();
+    static IDisposable RegisterRamenPartProducer() => RamenScenarioDisplayBridge.Register();
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static void RefreshLegendDisplay() => LegendScenarioDisplayBridge.Refresh();
+    static void UpdateLegendPart(
+        IDisposable producer,
+        EventLoggerScenarioDisplayPart part)
+        => LegendScenarioDisplayBridge.Update(producer, part);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static void RefreshRamenDisplay() => RamenScenarioDisplayBridge.Refresh();
+    static void UpdateRamenPart(
+        IDisposable producer,
+        EventLoggerScenarioDisplayPart part)
+        => RamenScenarioDisplayBridge.Update(producer, part);
 }
