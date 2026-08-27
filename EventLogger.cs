@@ -12,6 +12,8 @@ namespace EventLoggerPlugin
         SingleModeSelectIndexInfo[]? SelectIndexInfo,
         SingleModeHomeInfo? HomeInfo = null);
 
+    internal readonly record struct InheritGain(int Stats, int SkillPoints);
+
     sealed class LogValue
     {
         public static readonly LogValue NULL = new();
@@ -133,7 +135,7 @@ namespace EventLoggerPlugin
         static int SuccessEventSelectCount;  // 赌的次数
         static int SuccessEventSuccessCount; // 成功数
         static int CurrentScenario;  // 记录当前剧本，用于判断成功事件
-        static List<int> InheritStats = [];   // 两次继承属性
+        static List<InheritGain> InheritGains = [];   // 两次继承的属性和技能点
         static Dictionary<int, SkillTips> lastSkillTips = [];   // 上一次的Hint表
         static Dictionary<int, Gallop.SkillData> lastSkill = [];  // 上一次的技能表
         static Dictionary<string, int> lastProper = [];    // 上一次的适性
@@ -157,6 +159,12 @@ namespace EventLoggerPlugin
         static EventLoggerRoundSnapshot current = EventLoggerRoundSnapshot.Empty;
 
         public static EventLoggerRoundSnapshot Current => Volatile.Read(ref current);
+
+        internal static ImmutableArray<InheritGain> CaptureInheritGains()
+        {
+            lock (Gate)
+                return [.. InheritGains];
+        }
 
         internal static void ConfigureDataDirectory(string value)
         {
@@ -331,7 +339,7 @@ namespace EventLoggerPlugin
                 SuccessEventCount,
                 SuccessEventSelectCount,
                 SuccessEventSuccessCount,
-                [.. InheritStats],
+                [.. InheritGains.Select(gain => gain.Stats)],
                 [.. raceHistory],
                 vitalSpent,
                 LastVital,
@@ -374,7 +382,7 @@ namespace EventLoggerPlugin
             var chara = RequireChara(snapshot);
             CardEvents = [];
             AllEvents = [];
-            InheritStats = [];
+            InheritGains = [];
             CardEventCount = 0;
             CardEventFinishTurn = 0;
             CardEventFinishCount = 0;
@@ -543,7 +551,7 @@ namespace EventLoggerPlugin
                     // 分析特殊事件
                     if (lastEvent.StoryId == 400000040)    // 继承
                     {
-                        InheritStats.Add(lastEvent.Stats);
+                        InheritGains.Add(new(lastEvent.Stats, lastEvent.Pt));
                     }
                 } // if excludedevents
                 lastEvent.StoryId = uncheckedEvents.Length > 0 ? uncheckedEvents.First().story_id : -1;

@@ -5,7 +5,7 @@ namespace EventLoggerPlugin;
 internal static class RamenScenarioDisplayBridge
 {
     internal static IDisposable Register()
-        => RamenTrainingDisplay.RegisterPartProducer();
+        => RamenTrainingDisplay.RegisterPartProducer("EventLogger");
 
     internal static void Update(
         IDisposable registration,
@@ -23,10 +23,10 @@ internal static class RamenScenarioDisplayBridge
 
         foreach (var line in part.CardEventLines)
             if (line.Length != 0)
-                display.Important.AddStyled(new RamenDisplaySegment(line, RamenDisplayColor.Yellow));
+                display.Extra.AddStyled(new RamenDisplaySegment(line, RamenDisplayColor.Yellow));
 
         if (snapshot.CurrentTurn == part.TargetTurn && snapshot.TrainingFailures is { } failures)
-            display.Important.AddStyled(
+            display.Extra.AddStyled(
                 new RamenDisplaySegment("训练赌博: "),
                 new RamenDisplaySegment(failures.GambleTimes.ToString(), RamenDisplayColor.Yellow),
                 new RamenDisplaySegment("次, 失败"),
@@ -48,10 +48,16 @@ internal static class RamenScenarioDisplayBridge
                 new RamenDisplaySegment("次, 成功"),
                 new RamenDisplaySegment(snapshot.SuccessEvents.Succeeded.ToString(), RamenDisplayColor.Yellow),
                 new RamenDisplaySegment("次"));
-        if (snapshot.InheritStats.Count > 0)
+        if (part.InheritGains.Count > 0)
             display.Extra.AddStyled(
                 new RamenDisplaySegment("继承属性: "),
-                new RamenDisplaySegment(string.Join('+', snapshot.InheritStats), RamenDisplayColor.Cyan));
+                new RamenDisplaySegment(
+                    string.Join('+', part.InheritGains.Select(gain => gain.Stats)),
+                    RamenDisplayColor.Cyan),
+                new RamenDisplaySegment(", PT: "),
+                new RamenDisplaySegment(
+                    string.Join('+', part.InheritGains.Select(gain => gain.SkillPoints)),
+                    RamenDisplayColor.Cyan));
         if (snapshot.RaceWinCount > 0)
             display.Extra.AddStyled(
                 new RamenDisplaySegment("胜场: "),

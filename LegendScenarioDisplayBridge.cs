@@ -5,7 +5,7 @@ namespace EventLoggerPlugin;
 internal static class LegendScenarioDisplayBridge
 {
     internal static IDisposable Register()
-        => LegendTrainingDisplay.RegisterPartProducer();
+        => LegendTrainingDisplay.RegisterPartProducer("EventLogger");
 
     internal static void Update(
         IDisposable registration,
@@ -23,11 +23,11 @@ internal static class LegendScenarioDisplayBridge
 
         foreach (var line in part.CardEventLines)
             if (line.Length != 0)
-                display.Important.AddStyled(new LegendDisplaySegment(line, LegendDisplayColor.Yellow));
+                display.Extra.AddStyled(new LegendDisplaySegment(line, LegendDisplayColor.Yellow));
 
         if (snapshot.CurrentTurn == part.TargetTurn && snapshot.TrainingFailures is { } failures)
         {
-            display.Important.AddStyled(
+            display.Extra.AddStyled(
                 new LegendDisplaySegment("训练赌博: "),
                 new LegendDisplaySegment(failures.GambleTimes.ToString(), LegendDisplayColor.Yellow),
                 new LegendDisplaySegment("次, 失败"),
@@ -37,11 +37,12 @@ internal static class LegendScenarioDisplayBridge
                 new LegendDisplaySegment("%"));
         }
 
-        AddExtraRows(snapshot, display.Extra, part.TargetTurn);
+        AddExtraRows(snapshot, part.InheritGains, display.Extra, part.TargetTurn);
     }
 
     static void AddExtraRows(
         EventLoggerDisplaySnapshot snapshot,
+        IReadOnlyList<InheritGain> inheritGains,
         LegendDisplayRowsEditor rows,
         int displayedTurn)
     {
@@ -65,10 +66,16 @@ internal static class LegendScenarioDisplayBridge
                 new LegendDisplaySegment("次, 启动"),
                 new LegendDisplaySegment(friend.ActivatedTimes.ToString(), LegendDisplayColor.Aqua),
                 new LegendDisplaySegment("次"));
-        if (snapshot.InheritStats.Count > 0)
+        if (inheritGains.Count > 0)
             rows.AddStyled(
                 new LegendDisplaySegment("继承属性: "),
-                new LegendDisplaySegment(string.Join('+', snapshot.InheritStats), LegendDisplayColor.Cyan));
+                new LegendDisplaySegment(
+                    string.Join('+', inheritGains.Select(gain => gain.Stats)),
+                    LegendDisplayColor.Cyan),
+                new LegendDisplaySegment(", PT: "),
+                new LegendDisplaySegment(
+                    string.Join('+', inheritGains.Select(gain => gain.SkillPoints)),
+                    LegendDisplayColor.Cyan));
         if (snapshot.RaceWinCount > 0)
             rows.AddStyled(
                 new LegendDisplaySegment("胜场: "),
