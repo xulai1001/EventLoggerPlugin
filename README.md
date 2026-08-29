@@ -13,6 +13,6 @@ An `effect_type`-only succession event records its baseline and reports the revi
 The repository pins the Host and linked plugin sources with Git submodules. From the repository root after cloning:
 
 ```powershell
-git submodule update --init --recursive
+git -c core.longpaths=true submodule update --init --recursive
 dotnet build .\EventLoggerPlugin.csproj -c Release -m:1 -p:RuntimeIdentifier=win-x64 -p:SelfContained=false -p:PlatformTarget=AnyCPU -p:DeployUraPluginToLocalAppDataOnBuild=false
 ```
