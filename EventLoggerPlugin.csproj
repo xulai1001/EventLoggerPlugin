@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<Version>2026.3.9</Version>
-		<!-- 自动把本插件的 NuGet 依赖闭包(MathNet.Numerics 及其传递依赖)拷到输出；宿主依赖由 URA-Plugins 根 targets 统一提供 -->
+		<!-- 自动把本插件的 NuGet 依赖闭包(MathNet.Numerics 及其传递依赖)拷到输出；Host 依赖由仓库内 targets 提供 -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
 		<!-- URA 插件元数据 -->
@@ -24,10 +24,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\LegendScenarioAnalyzer\LegendScenarioAnalyzer.csproj">
+		<ProjectReference Include="deps\LegendScenarioAnalyzer\LegendScenarioAnalyzer.csproj"
+		                  AdditionalProperties="UraHostProjectPath=$(UraHostProjectPath)">
 			<Private>false</Private>
 		</ProjectReference>
-		<ProjectReference Include="..\RamenScenarioAnalyzer\RamenScenarioAnalyzer.csproj">
+		<ProjectReference Include="deps\RamenScenarioAnalyzer\RamenScenarioAnalyzer.csproj"
+		                  AdditionalProperties="UraHostProjectPath=$(UraHostProjectPath)">
 			<Private>false</Private>
 		</ProjectReference>
 	</ItemGroup>

@@ -1,0 +1,9 @@
+[submodule "UmamusumeResponseAnalyzer"]
+	path = deps/UmamusumeResponseAnalyzer
+	url = https://github.com/EtherealAO/UmamusumeResponseAnalyzer
+[submodule "LegendScenarioAnalyzer"]
+	path = deps/LegendScenarioAnalyzer
+	url = https://github.com/URA-Plugins/LegendScenarioAnalyzer.git
+[submodule "RamenScenarioAnalyzer"]
+	path = deps/RamenScenarioAnalyzer
+	url = https://github.com/URA-Plugins/RamenScenarioAnalyzer.git
