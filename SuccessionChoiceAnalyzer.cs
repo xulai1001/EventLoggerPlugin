@@ -76,10 +76,12 @@ static class SuccessionChoiceAnalyzer
             return false;
 
         var currentTotal = FiveStatus(chara).Select(ScoreUtils.ReviseOver1200).Sum();
-        var currentTipLevels = currentTips.ToDictionary(TipKey, tip => tip.level);
+        var currentTipLevels = currentTips.ToDictionary(tip => TipKey(tip.group_id, tip.rarity), tip => tip.level);
         var skillLookup = Database.Skills.Apply(new()
         {
-            skill_tips_array = [.. choices.SelectMany(choice => choice.skill_tips_array).DistinctBy(TipKey)],
+            skill_tips_array = [.. choices.SelectMany(choice => choice.skill_tips_array)
+                .DistinctBy(tip => TipKey(tip.group_id, tip.rarity))
+                .Select(tip => new SkillTips { group_id = tip.group_id, rarity = tip.rarity, level = tip.level })],
             skill_array = [],
             chara_effect_id_array = [],
         });
@@ -102,11 +104,11 @@ static class SuccessionChoiceAnalyzer
 
             var skillHints = choice.skill_tips_array
                 .Where(tip =>
-                    !currentTipLevels.TryGetValue(TipKey(tip), out var currentLevel) ||
+                    !currentTipLevels.TryGetValue(TipKey(tip.group_id, tip.rarity), out var currentLevel) ||
                     currentLevel != tip.level)
                 .Select(tip => new SuccessionSkillHint(
                     SkillName(skillLookup, tip),
-                    currentTipLevels.GetValueOrDefault(TipKey(tip)),
+                    currentTipLevels.GetValueOrDefault(TipKey(tip.group_id, tip.rarity)),
                     tip.level))
                 .ToArray();
             var whiteFactors = choice.effected_factor_array
@@ -126,9 +128,9 @@ static class SuccessionChoiceAnalyzer
         return true;
     }
 
-    static int TipKey(SkillTips tip) => tip.group_id * 10 + tip.rarity;
+    static int TipKey(int groupId, int rarity) => groupId * 10 + rarity;
 
-    static string SkillName(SkillManager skills, SkillTips tip)
+    static string SkillName(SkillManager skills, ExtraSkillTips tip)
     {
         var matches = skills.FindByGroup(tip.group_id, tip.rarity);
         return (matches.Where(skill => skill.Rate > 0).MinBy(skill => skill.Rate) ??
@@ -136,7 +138,7 @@ static class SuccessionChoiceAnalyzer
             ?? $"未知技能 #{tip.group_id}/{tip.rarity}";
     }
 
-    static SuccessionWhiteFactor CreateWhiteFactor(FactorInfo factor)
+    static SuccessionWhiteFactor CreateWhiteFactor(ExtraFactorInfo factor)
     {
         if (!Database.FactorIds.TryGetValue(factor.factor_id, out var displayName))
             return new($"未知因子 #{factor.factor_id}", $" Lv.{factor.level}");
