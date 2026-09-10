@@ -15,6 +15,14 @@ namespace EventLoggerPlugin;
 static class SuccessionChoiceAnalyzer
 {
     static readonly string[] ProperRanks = ["", "G", "F", "E", "D", "C", "B", "A", "S"];
+    
+    // ExtraSkillTips -> SkillTips
+    public static SkillTips IntoBaseSkillTips(ExtraSkillTips tips) => new SkillTips
+    {
+        group_id = tips.group_id,
+        level = tips.level,
+        rarity = tips.rarity
+    };
 
     public static ValueTask Analyze(SingleModeCheckEventResponse response)
         => Publish(new(
@@ -79,7 +87,11 @@ static class SuccessionChoiceAnalyzer
         var currentTipLevels = currentTips.ToDictionary(TipKey, tip => tip.level);
         var skillLookup = Database.Skills.Apply(new()
         {
-            skill_tips_array = [.. choices.SelectMany(choice => choice.skill_tips_array).DistinctBy(TipKey)],
+            skill_tips_array = [
+                .. choices.SelectMany(choice => choice.skill_tips_array)
+                    .DistinctBy(TipKey)
+                    .Select(tkey => IntoBaseSkillTips(tkey))
+            ],
             skill_array = [],
             chara_effect_id_array = [],
         });
@@ -105,7 +117,7 @@ static class SuccessionChoiceAnalyzer
                     !currentTipLevels.TryGetValue(TipKey(tip), out var currentLevel) ||
                     currentLevel != tip.level)
                 .Select(tip => new SuccessionSkillHint(
-                    SkillName(skillLookup, tip),
+                    SkillName(skillLookup, IntoBaseSkillTips(tip)),
                     currentTipLevels.GetValueOrDefault(TipKey(tip)),
                     tip.level))
                 .ToArray();
@@ -128,6 +140,8 @@ static class SuccessionChoiceAnalyzer
 
     static int TipKey(SkillTips tip) => tip.group_id * 10 + tip.rarity;
 
+    static int TipKey(ExtraSkillTips tip) => tip.group_id * 10 + tip.rarity;
+
     static string SkillName(SkillManager skills, SkillTips tip)
     {
         var matches = skills.FindByGroup(tip.group_id, tip.rarity);
@@ -137,6 +151,17 @@ static class SuccessionChoiceAnalyzer
     }
 
     static SuccessionWhiteFactor CreateWhiteFactor(FactorInfo factor)
+    {
+        if (!Database.FactorIds.TryGetValue(factor.factor_id, out var displayName))
+            return new($"未知因子 #{factor.factor_id}", $" Lv.{factor.level}");
+
+        var starsStart = displayName.IndexOf('★');
+        return starsStart < 0
+            ? new(displayName, string.Empty)
+            : new(displayName[..starsStart], displayName[starsStart..]);
+    }
+
+    static SuccessionWhiteFactor CreateWhiteFactor(ExtraFactorInfo factor)
     {
         if (!Database.FactorIds.TryGetValue(factor.factor_id, out var displayName))
             return new($"未知因子 #{factor.factor_id}", $" Lv.{factor.level}");
