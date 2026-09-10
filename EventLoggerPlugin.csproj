@@ -5,8 +5,8 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>2026.3.9</Version>
-		<!-- 自动把本插件的 NuGet 依赖闭包(MathNet.Numerics 及其传递依赖)拷到输出；Host 依赖由仓库内 targets 提供 -->
+		<Version>2026.9.10</Version>
+		<!-- 自动把本插件的 NuGet 运行时依赖闭包拷到输出。 -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
 		<!-- URA 插件元数据 -->
@@ -24,14 +24,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="deps\LegendScenarioAnalyzer\LegendScenarioAnalyzer.csproj"
-		                  AdditionalProperties="UraHostProjectPath=$(UraHostProjectPath)">
+		<ProjectReference Include="deps\LegendScenarioAnalyzer\LegendScenarioAnalyzer.csproj">
 			<Private>false</Private>
 		</ProjectReference>
-		<ProjectReference Include="deps\RamenScenarioAnalyzer\RamenScenarioAnalyzer.csproj"
-		                  AdditionalProperties="UraHostProjectPath=$(UraHostProjectPath)">
+		<ProjectReference Include="deps\RamenScenarioAnalyzer\RamenScenarioAnalyzer.csproj">
 			<Private>false</Private>
 		</ProjectReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="UmamusumeResponseAnalyzer" Version="*" PrivateAssets="all" />
 	</ItemGroup>
 
 </Project>
