@@ -5,7 +5,7 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<Version>2026.9.10</Version>
+		<Version>2026.9.11</Version>
 		<!-- 自动把本插件的 NuGet 运行时依赖闭包拷到输出。 -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
@@ -14,6 +14,7 @@
 		<PluginDisplayName>记录事件信息&amp;干劲等</PluginDisplayName>
 		<PluginAuthor>xulai1001</PluginAuthor>
 		<PluginDescription>记录掉干劲的次数，事件加的属性，走完率等</PluginDescription>
+		<PluginChangelog>适配继承技能与因子数据；拉面杯剧本 ID 设为 14，并同步状态缓存依赖；暂停 Legend 训练面板附加信息。</PluginChangelog>
 		<PluginRepositoryUrl>https://github.com/URA-Plugins/EventLoggerPlugin</PluginRepositoryUrl>
 		<PluginDependencies>LegendScenarioAnalyzer,RamenScenarioAnalyzer</PluginDependencies>
 	</PropertyGroup>
