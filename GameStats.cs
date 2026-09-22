@@ -10,7 +10,7 @@ public enum ScenarioType
     LArc = 6,
     UAF = 7,
     Legend = 10,
-    Ramen = 13,
+    Ramen = 14,
 }
 
 public sealed class TrainStats

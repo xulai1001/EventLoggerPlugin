@@ -9,7 +9,6 @@ public sealed class EventLoggerPlugin : IPlugin
 {
     static string DataDirectory => Path.Combine("PluginData", "EventLoggerPlugin");
     readonly object scenarioGate = new();
-    IDisposable? legendPartProducer;
     IDisposable? ramenPartProducer;
     int scenarioCharaId;
     int pendingTrainingTurn = -1;
@@ -21,8 +20,6 @@ public sealed class EventLoggerPlugin : IPlugin
         EventLogger.ConfigureDataDirectory(DataDirectory);
         Directory.CreateDirectory(DataDirectory);
         EventLoggerDisplay.Initialize(context);
-      //  if (context.IsPluginAvailable("LegendScenarioAnalyzer"))
-      //      legendPartProducer = RegisterLegendPartProducer();
         if (context.IsPluginAvailable("RamenScenarioAnalyzer"))
             ramenPartProducer = RegisterRamenPartProducer();
 
@@ -81,18 +78,11 @@ public sealed class EventLoggerPlugin : IPlugin
     {
         try
         {
-            legendPartProducer?.Dispose();
+            ramenPartProducer?.Dispose();
         }
         finally
         {
-            try
-            {
-                ramenPartProducer?.Dispose();
-            }
-            finally
-            {
-                EventLoggerDisplay.Dispose();
-            }
+            EventLoggerDisplay.Dispose();
         }
     }
 
@@ -323,19 +313,8 @@ public sealed class EventLoggerPlugin : IPlugin
         if (source.CharaInfo is not { } chara)
             return;
 
-      /*  if (chara.scenario_id == (int)ScenarioType.Legend &&
-            legendPartProducer is { } legendProducer)
-        {
-            UpdateLegendPart(
-                legendProducer,
-                EventLoggerScenarioDisplayPart.Capture(
-                    chara.scenario_id,
-                    chara.single_mode_chara_id,
-                    chara.turn));
-        }
-        else 
-      */if (chara.scenario_id == (int)ScenarioType.Ramen &&
-                 ramenPartProducer is { } ramenProducer)
+        if (chara.scenario_id == (int)ScenarioType.Ramen &&
+            ramenPartProducer is { } ramenProducer)
         {
             UpdateRamenPart(
                 ramenProducer,
@@ -346,18 +325,9 @@ public sealed class EventLoggerPlugin : IPlugin
         }
     }
 
-   // [MethodImpl(MethodImplOptions.NoInlining)]
-   // static IDisposable RegisterLegendPartProducer() => LegendScenarioDisplayBridge.Register();
-
     [MethodImpl(MethodImplOptions.NoInlining)]
     static IDisposable RegisterRamenPartProducer() => RamenScenarioDisplayBridge.Register();
 
-  /*  [MethodImpl(MethodImplOptions.NoInlining)]
-    static void UpdateLegendPart(
-        IDisposable producer,
-        EventLoggerScenarioDisplayPart part)
-        => LegendScenarioDisplayBridge.Update(producer, part);
-  */
     [MethodImpl(MethodImplOptions.NoInlining)]
     static void UpdateRamenPart(
         IDisposable producer,
