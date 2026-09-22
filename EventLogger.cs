@@ -1,4 +1,4 @@
-﻿using Gallop;
+using Gallop;
 using MathNet.Numerics.Distributions;
 using Newtonsoft.Json;
 using System.Collections.Frozen;
@@ -120,7 +120,7 @@ namespace EventLoggerPlugin
         // 排除佐岳充电,SS,继承,老登三选一,第三年凯旋门（输/赢）,以及无事发生直接到下一回合的情况
         static readonly FrozenSet<int> ExcludedEvents = new[] { 809043003, 400006112, 400000040, 400006474, 400006439, 830241003, -1 }.ToFrozenSet();
         // 友人和团队卡不计入连续事件，这里仅排除这几个
-        static readonly FrozenSet<int> ExcludedFriendCards = new[] { 30160, 30137, 30067, 30052, 10104, 30188, 10109, 30207, 30241, 30257, 30276, 10128, 10138, 10141, 30290 }.ToFrozenSet();
+        static readonly FrozenSet<int> ExcludedFriendCards = new[] { 30160, 30137, 30067, 30052, 10104, 30188, 10109, 30207, 30241, 30257, 30276, 10128, 10138, 10141, 30290, 30305 }.ToFrozenSet();
         // 这些回合不能触发连续事件
         static readonly FrozenSet<int> ExcludedTurns = new[] { 1, 25, 31, 35, 37, 38, 39, 40, 49, 51, 55, 59, 61, 62, 63, 64, 72, 73, 74, 75, 76, 77, 78 }.ToFrozenSet();
         static string DataDirectory { get; set; } = Path.Combine("PluginData", "EventLoggerPlugin");
@@ -131,6 +131,7 @@ namespace EventLoggerPlugin
         static int CardEventFinishCount; // 连续事件完成数
         static int CardEventFinishTurn;  // 如果连续事件全走完，记录回合数
         static int CardEventRemaining;  // 连续事件剩余数
+        static Dictionary<int, int> CardEventCountByCard = []; // 各支援卡连续事件出现次数（仅含应被统计的卡）
         static int SuccessEventCount;    // 赌狗事件发生数
         static int SuccessEventSelectCount;  // 赌的次数
         static int SuccessEventSuccessCount; // 成功数
@@ -336,6 +337,7 @@ namespace EventLoggerPlugin
                 CardEventFinishCount,
                 CardEventFinishTurn,
                 CardEventRemaining,
+                CardEventCountByCard.ToFrozenDictionary(),
                 SuccessEventCount,
                 SuccessEventSelectCount,
                 SuccessEventSuccessCount,
@@ -395,10 +397,14 @@ namespace EventLoggerPlugin
             // 需要传入SupportCard数组以确认带了哪些卡
             CardIDs = chara.support_card_array.Select(x => x.support_card_id).ToList();
             CardEventRemaining = 0;
+            CardEventCountByCard = [];
             foreach (var c in CardIDs)
             {
                 if (!ExcludedFriendCards.Contains(c) && c / 10000 > 1)  // 稀有度>1
+                {
                     CardEventRemaining += c / 10000;
+                    CardEventCountByCard[c] = 0;
+                }
             }
             lastSkill = new Dictionary<int, Gallop.SkillData>();
             lastSkillTips = new Dictionary<int, SkillTips>();
@@ -511,6 +517,8 @@ namespace EventLoggerPlugin
                                 {
                                     ++CardEventCount;
                                     --CardEventRemaining;
+                                    if (CardEventCountByCard.ContainsKey(cardId))
+                                        ++CardEventCountByCard[cardId];
                                     // 记录事件
                                     var logEntry = new CardEventLogEntry
                                     {
